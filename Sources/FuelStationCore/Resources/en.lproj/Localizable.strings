@@ -1,0 +1,183 @@
+// App Navigation
+"Dashboard" = "Dashboard";
+"Inventory" = "Inventory";
+"Transactions" = "Transactions";
+"Finances" = "Finances";
+"Settings" = "Settings";
+
+// Dashboard
+"Today's Sales" = "Today's Sales";
+"Tanks" = "Tanks";
+"Low Alerts" = "Low Alerts";
+"Analytics" = "Analytics";
+"Low Stock Alerts" = "Low Stock Alerts";
+"Recent Transactions" = "Recent Transactions";
+"No transactions yet" = "No transactions yet";
+"Transaction" = "Transaction";
+"Delivery" = "Delivery";
+"Expense" = "Expense";
+"Closure" = "Closure";
+"7 Days" = "7 Days";
+"30 Days" = "30 Days";
+
+// Transactions
+"Select a transaction" = "Select a transaction";
+"From" = "From";
+"To" = "To";
+"All Pumps" = "All Pumps";
+"All Methods" = "All Methods";
+"Pump" = "Pump";
+"Date" = "Date";
+"Fuel" = "Fuel";
+"Liters" = "Liters";
+"Amount" = "Amount";
+"Payment" = "Payment";
+"New Transaction" = "New Transaction";
+"Transaction Details" = "Transaction Details";
+"Totals" = "Totals";
+"Today" = "Today";
+"Filtered Period" = "Filtered Period";
+"Notes" = "Notes";
+"Delete" = "Delete";
+"Invalid Input" = "Invalid Input";
+"Price / L" = "Price / L";
+"Fuel Type" = "Fuel Type";
+
+// Inventory
+"Select a tank" = "Select a tank";
+"Add Tank" = "Add Tank";
+"Log Delivery" = "Log Delivery";
+"Tank Info" = "Tank Info";
+"Threshold" = "Threshold";
+"Delivery History" = "Delivery History";
+"Type" = "Type";
+"Capacity" = "Capacity";
+"Current" = "Current";
+"Fill" = "Fill";
+"Last Updated" = "Last Updated";
+"Capacity (L)" = "Capacity (L)";
+"Cancel" = "Cancel";
+"Add" = "Add";
+"Supplier" = "Supplier";
+"Cost" = "Cost";
+"Invoice Ref (optional)" = "Invoice Ref (optional)";
+"Record" = "Record";
+"No deliveries recorded" = "No deliveries recorded";
+
+// Reports
+"Reports" = "Reports";
+"Profit & Loss Summary" = "Profit & Loss Summary";
+"Daily Breakdown" = "Daily Breakdown";
+"No transactions in this period" = "No transactions in this period";
+"Export Report (CSV)" = "Export Report (CSV)";
+"Export Data (JSON)" = "Export Data (JSON)";
+"From" = "From";
+"To" = "To";
+"Today" = "Today";
+"7 Days" = "7 Days";
+"30 Days" = "30 Days";
+"90 Days" = "90 Days";
+"Year" = "Year";
+"Transactions" = "Transactions";
+"Avg / Tx" = "Avg / Tx";
+"Sales" = "Sales";
+
+// Finances
+"Select an expense for details" = "Select an expense for details";
+"Profit & Loss Summary" = "Profit & Loss Summary";
+"Revenue" = "Revenue";
+"Expenses" = "Expenses";
+"Deliveries Cost" = "Deliveries Cost";
+"Gross Profit" = "Gross Profit";
+"Deliveries" = "Deliveries";
+"No deliveries recorded" = "No deliveries recorded";
+"Expense Details" = "Expense Details";
+"Category" = "Category";
+"Note" = "Note";
+"Receipt" = "Receipt";
+"Add Expense" = "Add Expense";
+"Export" = "Export";
+"Export Data" = "Export Data";
+
+// Settings
+"Financial Settings" = "Financial Settings";
+"Tax Rate" = "Tax Rate";
+"Currency" = "Currency";
+"Inventory Threshold" = "Inventory Threshold";
+"Low Stock Alert (L)" = "Low Stock Alert (L)";
+"Fuel Types & Pricing" = "Fuel Types & Pricing";
+"Add Fuel Type" = "Add Fuel Type";
+"Backup & Restore" = "Backup & Restore";
+"Auto Backup" = "Auto Backup";
+"Create Backup Now" = "Create Backup Now";
+"Restore from Backup" = "Restore from Backup";
+"Data Management" = "Data Management";
+"Export All Data (JSON)" = "Export All Data (JSON)";
+"Wipe All Data" = "Wipe All Data";
+"About" = "About";
+"App Version" = "App Version";
+"Data Size" = "Data Size";
+
+// Charts
+"Sales Trend" = "Sales Trend";
+"Payment Breakdown" = "Payment Breakdown";
+"Fuel Type Sales Today" = "Fuel Type Sales Today";
+"Tank Levels" = "Tank Levels";
+"Weekly Comparison" = "Weekly Comparison";
+"No sales data" = "No sales data";
+"No payments today" = "No payments today";
+"No fuel sales today" = "No fuel sales today";
+"No tanks configured" = "No tanks configured";
+"No data" = "No data";
+"Transactions will appear here" = "Transactions will appear here";
+"Today's transactions will appear here" = "Today's transactions will appear here";
+"Add tanks in Inventory" = "Add tanks in Inventory";
+"Compare this week vs last week" = "Compare this week vs last week";
+
+// Daily Closure
+"Daily Closure Report" = "Daily Closure Report";
+"Sales Summary" = "Sales Summary";
+"Fuel Sales" = "Fuel Sales";
+"Expenses Today" = "Expenses Today";
+"Deliveries Today" = "Deliveries Today";
+"Cash Reconciliation" = "Cash Reconciliation";
+"Expected Cash (from Cash transactions)" = "Expected Cash (from Cash transactions)";
+"Declared Cash" = "Declared Cash";
+"Difference" = "Difference";
+"Export Report (CSV)" = "Export Report (CSV)";
+"Close" = "Close";
+
+// Validation Messages
+"Liters must be greater than zero" = "Liters must be greater than zero";
+"Amount must be greater than zero" = "Amount must be greater than zero";
+"Please fill in all required fields" = "Please fill in all required fields";
+"Supplier is required" = "Supplier is required";
+"Cost cannot be negative" = "Cost cannot be negative";
+"Supplier must be provided, liters and cost must be valid numbers" = "Supplier must be provided, liters and cost must be valid numbers";
+"Fuel type is required" = "Fuel type is required";
+
+// Backup/Restore
+"Backup created" = "Backup created";
+"Backup restored successfully" = "Backup restored successfully";
+"All data wiped" = "All data wiped";
+"Restore cancelled" = "Restore cancelled";
+
+// Wipe confirmation
+"Wipe All Data?" = "Wipe All Data?";
+"Wipe" = "Wipe";
+"This will permanently delete all fuel tanks, transactions, deliveries, and expenses. This action cannot be undone." = "This will permanently delete all fuel tanks, transactions, deliveries, and expenses. This action cannot be undone.";
+
+// Error
+"Error" = "Error";
+"OK" = "OK";
+
+// Currencies (displayed in UI)
+"USD ($)" = "USD ($)";
+"EUR (€)" = "EUR (€)";
+"GBP (£)" = "GBP (£)";
+"JPY (¥)" = "JPY (¥)";
+
+// Picker Labels
+"Fuel Type" = "Fuel Type";
+"Notes" = "Notes";
+"Receipt" = "Receipt";

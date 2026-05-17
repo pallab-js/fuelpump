@@ -1,0 +1,170 @@
+// Navigation de l'application
+"Dashboard" = "Tableau de bord";
+"Inventory" = "Inventaire";
+"Transactions" = "Transactions";
+"Finances" = "Finances";
+"Settings" = "Paramètres";
+
+// Tableau de bord
+"Today's Sales" = "Ventes du jour";
+"Tanks" = "Cuves";
+"Low Alerts" = "Alertes stock";
+"Analytics" = "Analyses";
+"Low Stock Alerts" = "Alertes de stock faible";
+"Recent Transactions" = "Transactions récentes";
+"No transactions yet" = "Aucune transaction";
+"Transaction" = "Transaction";
+"Delivery" = "Livraison";
+"Expense" = "Dépense";
+"Closure" = "Clôture";
+"7 Days" = "7 Jours";
+"30 Days" = "30 Jours";
+
+// Transactions
+"Select a transaction" = "Sélectionner une transaction";
+"From" = "Du";
+"To" = "Au";
+"All Pumps" = "Toutes les pompes";
+"All Methods" = "Tous les moyens";
+"Pump" = "Pompe";
+"Date" = "Date";
+"Fuel" = "Carburant";
+"Liters" = "Litres";
+"Amount" = "Montant";
+"Payment" = "Paiement";
+"New Transaction" = "Nouvelle transaction";
+"Transaction Details" = "Détails de la transaction";
+"Totals" = "Totaux";
+"Today" = "Aujourd'hui";
+"Filtered Period" = "Période filtrée";
+"Notes" = "Notes";
+"Delete" = "Supprimer";
+"Invalid Input" = "Saisie invalide";
+"Price / L" = "Prix / L";
+"Fuel Type" = "Type de carburant";
+
+// Inventaire
+"Select a tank" = "Sélectionner une cuve";
+"Add Tank" = "Ajouter une cuve";
+"Log Delivery" = "Enregistrer livraison";
+"Tank Info" = "Infos cuve";
+"Threshold" = "Seuil";
+"Delivery History" = "Historique livraisons";
+"Type" = "Type";
+"Capacity" = "Capacité";
+"Current" = "Niveau actuel";
+"Fill" = "Remplissage";
+"Last Updated" = "Dernière mise à jour";
+"Capacity (L)" = "Capacité (L)";
+"Cancel" = "Annuler";
+"Add" = "Ajouter";
+"Supplier" = "Fournisseur";
+"Cost" = "Coût";
+"Invoice Ref (optional)" = "Réf. facture (optionnel)";
+"Record" = "Enregistrer";
+"No deliveries recorded" = "Aucune livraison";
+
+// Rapports
+"Reports" = "Rapports";
+"Daily Breakdown" = "Détail journalier";
+"No transactions in this period" = "Aucune transaction sur cette période";
+"Export Data (JSON)" = "Exporter les données (JSON)";
+"Today" = "Aujourd'hui";
+"90 Days" = "90 Jours";
+"Year" = "Année";
+"Avg / Tx" = "Moy / Tx";
+"Sales" = "Ventes";
+
+// Finances
+"Select an expense for details" = "Sélectionner une dépense";
+"Profit & Loss Summary" = "Résultat net";
+"Revenue" = "Revenus";
+"Expenses" = "Dépenses";
+"Deliveries Cost" = "Coût livraisons";
+"Gross Profit" = "Bénéfice brut";
+"Deliveries" = "Livraisons";
+"Expense Details" = "Détails de la dépense";
+"Category" = "Catégorie";
+"Note" = "Note";
+"Receipt" = "Reçu";
+"Add Expense" = "Ajouter une dépense";
+"Export" = "Exporter";
+"Export Data" = "Exporter les données";
+
+// Paramètres
+"Financial Settings" = "Paramètres financiers";
+"Tax Rate" = "Taux de taxe";
+"Currency" = "Devise";
+"Inventory Threshold" = "Seuil d'inventaire";
+"Low Stock Alert (L)" = "Alerte stock faible (L)";
+"Fuel Types & Pricing" = "Carburants et prix";
+"Add Fuel Type" = "Ajouter un carburant";
+"Backup & Restore" = "Sauvegarde et restauration";
+"Auto Backup" = "Sauvegarde auto";
+"Create Backup Now" = "Sauvegarder maintenant";
+"Restore from Backup" = "Restaurer une sauvegarde";
+"Data Management" = "Gestion des données";
+"Export All Data (JSON)" = "Tout exporter (JSON)";
+"Wipe All Data" = "Tout effacer";
+"About" = "À propos";
+"App Version" = "Version";
+"Data Size" = "Taille des données";
+
+// Graphiques
+"Sales Trend" = "Tendance des ventes";
+"Payment Breakdown" = "Répartition des paiements";
+"Fuel Type Sales Today" = "Ventes par carburant";
+"Tank Levels" = "Niveaux des cuves";
+"Weekly Comparison" = "Comparaison hebdomadaire";
+"No sales data" = "Aucune donnée de vente";
+"No payments today" = "Aucun paiement aujourd'hui";
+"No fuel sales today" = "Aucune vente aujourd'hui";
+"No tanks configured" = "Aucune cuve configurée";
+"No data" = "Aucune donnée";
+"Transactions will appear here" = "Les transactions apparaîtront ici";
+"Today's transactions will appear here" = "Les transactions du jour apparaîtront ici";
+"Add tanks in Inventory" = "Ajouter des cuves dans Inventaire";
+"Compare this week vs last week" = "Comparer cette semaine à la dernière";
+
+// Clôture quotidienne
+"Daily Closure Report" = "Rapport de clôture";
+"Sales Summary" = "Résumé des ventes";
+"Fuel Sales" = "Ventes de carburant";
+"Expenses Today" = "Dépenses du jour";
+"Deliveries Today" = "Livraisons du jour";
+"Cash Reconciliation" = "Rapprochement caisse";
+"Expected Cash (from Cash transactions)" = "Espèces attendues";
+"Declared Cash" = "Espèces déclarées";
+"Difference" = "Écart";
+"Export Report (CSV)" = "Exporter le rapport (CSV)";
+"Close" = "Fermer";
+
+// Messages de validation
+"Liters must be greater than zero" = "Les litres doivent être supérieurs à zéro";
+"Amount must be greater than zero" = "Le montant doit être supérieur à zéro";
+"Please fill in all required fields" = "Veuillez remplir tous les champs";
+"Supplier is required" = "Le fournisseur est requis";
+"Cost cannot be negative" = "Le coût ne peut pas être négatif";
+"Supplier must be provided, liters and cost must be valid numbers" = "Fournisseur requis, litres et coût valides requis";
+"Fuel type is required" = "Le type de carburant est requis";
+
+// Sauvegarde
+"Backup created" = "Sauvegarde créée";
+"Backup restored successfully" = "Sauvegarde restaurée";
+"All data wiped" = "Toutes les données effacées";
+"Restore cancelled" = "Restauration annulée";
+
+// Confirmation d'effacement
+"Wipe All Data?" = "Tout effacer ?";
+"Wipe" = "Effacer";
+"This will permanently delete all fuel tanks, transactions, deliveries, and expenses. This action cannot be undone." = "Cela supprimera définitivement toutes les cuves, transactions, livraisons et dépenses. Action irréversible.";
+
+// Erreur
+"Error" = "Erreur";
+"OK" = "OK";
+
+// Devises (affichées dans l'interface)
+"USD ($)" = "USD ($)";
+"EUR (€)" = "EUR (€)";
+"GBP (£)" = "GBP (£)";
+"JPY (¥)" = "JPY (¥)";
