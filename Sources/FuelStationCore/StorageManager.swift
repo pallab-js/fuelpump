@@ -61,18 +61,23 @@ public final class StorageManager {
     // MARK: - CoreData Helpers
 
     private func saveBlob<T: Encodable>(_ value: T, _ key: String) {
-        let context = stack.viewContext
-        let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
-        request.predicate = NSPredicate(format: "key == %@", key)
+        // We perform encoding and DB work on a background task
+        let dataToSave: Data? = try? encoder.encode(value)
+        let backgroundContext = stack.newBackgroundContext()
         
-        do {
-            let results = try context.fetch(request)
-            let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: context)
-            object.setValue(key, forKey: "key")
-            object.setValue(try encoder.encode(value), forKey: "data")
-            stack.saveContext()
-        } catch {
-            logger.error("Failed to save blob \(key): \(error.localizedDescription)")
+        backgroundContext.perform {
+            let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
+            request.predicate = NSPredicate(format: "key == %@", key)
+            
+            do {
+                let results = try backgroundContext.fetch(request)
+                let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: backgroundContext)
+                object.setValue(key, forKey: "key")
+                object.setValue(dataToSave, forKey: "data")
+                try backgroundContext.save()
+            } catch {
+                logger.error("Failed to save blob \(key): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -93,52 +98,62 @@ public final class StorageManager {
     }
 
     private func loadTransactions() {
-        let context = stack.viewContext
-        let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
-        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        
-        do {
-            let results = try context.fetch(request)
-            transactions = results.compactMap { obj in
-                FuelTransaction(
-                    id: obj.value(forKey: "id") as? UUID ?? UUID(),
-                    date: obj.value(forKey: "date") as? Date ?? .now,
-                    pumpID: Int(obj.value(forKey: "pumpID") as? Int64 ?? 0),
-                    fuelType: obj.value(forKey: "fuelType") as? String ?? "",
-                    liters: obj.value(forKey: "liters") as? Double ?? 0,
-                    amount: obj.value(forKey: "amount") as? Double ?? 0,
-                    paymentMethod: obj.value(forKey: "paymentMethod") as? String ?? "Cash",
-                    notes: obj.value(forKey: "notes") as? String,
-                    customerID: obj.value(forKey: "customerID") as? UUID,
-                    shiftID: obj.value(forKey: "shiftID") as? UUID,
-                    attendantName: obj.value(forKey: "attendantName") as? String
-                )
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
+            request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+            
+            do {
+                let results = try backgroundContext.fetch(request)
+                let txs = results.compactMap { obj in
+                    FuelTransaction(
+                        id: obj.value(forKey: "id") as? UUID ?? UUID(),
+                        date: obj.value(forKey: "date") as? Date ?? .now,
+                        pumpID: Int(obj.value(forKey: "pumpID") as? Int64 ?? 0),
+                        fuelType: obj.value(forKey: "fuelType") as? String ?? "",
+                        liters: obj.value(forKey: "liters") as? Double ?? 0,
+                        amount: obj.value(forKey: "amount") as? Double ?? 0,
+                        paymentMethod: obj.value(forKey: "paymentMethod") as? String ?? "Cash",
+                        notes: obj.value(forKey: "notes") as? String,
+                        customerID: obj.value(forKey: "customerID") as? UUID,
+                        shiftID: obj.value(forKey: "shiftID") as? UUID,
+                        attendantName: obj.value(forKey: "attendantName") as? String
+                    )
+                }
+                Task { @MainActor in
+                    self.transactions = txs
+                }
+            } catch {
+                logger.error("Failed to load transactions: \(error.localizedDescription)")
             }
-        } catch {
-            logger.error("Failed to load transactions: \(error.localizedDescription)")
         }
     }
 
     private func loadLubeSales() {
-        let context = stack.viewContext
-        let request = NSFetchRequest<NSManagedObject>(entityName: "LubeSaleEntity")
-        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        
-        do {
-            let results = try context.fetch(request)
-            lubeSales = results.compactMap { obj in
-                LubeSale(
-                    id: obj.value(forKey: "id") as? UUID ?? UUID(),
-                    date: obj.value(forKey: "date") as? Date ?? .now,
-                    productID: obj.value(forKey: "productID") as? UUID ?? UUID(),
-                    quantity: Int(obj.value(forKey: "quantity") as? Int64 ?? 0),
-                    totalAmount: obj.value(forKey: "totalAmount") as? Double ?? 0,
-                    customerID: obj.value(forKey: "customerID") as? UUID,
-                    attendantName: obj.value(forKey: "attendantName") as? String
-                )
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let request = NSFetchRequest<NSManagedObject>(entityName: "LubeSaleEntity")
+            request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+            
+            do {
+                let results = try backgroundContext.fetch(request)
+                let sales = results.compactMap { obj in
+                    LubeSale(
+                        id: obj.value(forKey: "id") as? UUID ?? UUID(),
+                        date: obj.value(forKey: "date") as? Date ?? .now,
+                        productID: obj.value(forKey: "productID") as? UUID ?? UUID(),
+                        quantity: Int(obj.value(forKey: "quantity") as? Int64 ?? 0),
+                        totalAmount: obj.value(forKey: "totalAmount") as? Double ?? 0,
+                        customerID: obj.value(forKey: "customerID") as? UUID,
+                        attendantName: obj.value(forKey: "attendantName") as? String
+                    )
+                }
+                Task { @MainActor in
+                    self.lubeSales = sales
+                }
+            } catch {
+                logger.error("Failed to load lube sales: \(error.localizedDescription)")
             }
-        } catch {
-            logger.error("Failed to load lube sales: \(error.localizedDescription)")
         }
     }
 
@@ -162,7 +177,7 @@ public final class StorageManager {
         )
         let data = try encoder.encode(snapshot)
         try data.write(to: backupURL, options: .atomic)
-        logger.log("Backup created at \(backupURL.path)")
+        logger.log("Backup created: \(backupURL.lastPathComponent)")
     }
 
     public func restore(from url: URL) throws {
@@ -347,16 +362,18 @@ public final class StorageManager {
     }
     
     private func saveLubeSaleToCoreData(_ sale: LubeSale) throws {
-        let context = stack.viewContext
-        let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: context)
-        object.setValue(sale.id, forKey: "id")
-        object.setValue(sale.date, forKey: "date")
-        object.setValue(sale.productID, forKey: "productID")
-        object.setValue(Int64(sale.quantity), forKey: "quantity")
-        object.setValue(sale.totalAmount, forKey: "totalAmount")
-        object.setValue(sale.customerID, forKey: "customerID")
-        object.setValue(sale.attendantName, forKey: "attendantName")
-        stack.saveContext()
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: backgroundContext)
+            object.setValue(sale.id, forKey: "id")
+            object.setValue(sale.date, forKey: "date")
+            object.setValue(sale.productID, forKey: "productID")
+            object.setValue(Int64(sale.quantity), forKey: "quantity")
+            object.setValue(sale.totalAmount, forKey: "totalAmount")
+            object.setValue(sale.customerID, forKey: "customerID")
+            object.setValue(sale.attendantName, forKey: "attendantName")
+            try? backgroundContext.save()
+        }
     }
 
     // MARK: - Fuel Tanks
@@ -427,35 +444,10 @@ public final class StorageManager {
     }
     
     private func saveTransactionToCoreData(_ tx: FuelTransaction) throws {
-        let context = stack.viewContext
-        let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: context)
-        object.setValue(tx.id, forKey: "id")
-        object.setValue(tx.date, forKey: "date")
-        object.setValue(Int64(tx.pumpID), forKey: "pumpID")
-        object.setValue(tx.fuelType, forKey: "fuelType")
-        object.setValue(tx.liters, forKey: "liters")
-        object.setValue(tx.amount, forKey: "amount")
-        object.setValue(tx.paymentMethod, forKey: "paymentMethod")
-        object.setValue(tx.notes, forKey: "notes")
-        object.setValue(tx.customerID, forKey: "customerID")
-        object.setValue(tx.shiftID, forKey: "shiftID")
-        object.setValue(tx.attendantName, forKey: "attendantName")
-        stack.saveContext()
-    }
-
-    public func updateTransaction(_ tx: FuelTransaction) {
-        guard let idx = transactions.firstIndex(where: { $0.id == tx.id }) else { return }
-        transactions[idx] = tx
-        // In a real app we'd update the specific entity here too
-        saveTransactionToCoreDataManual(tx)
-        saveAll()
-    }
-    
-    private func saveTransactionToCoreDataManual(_ tx: FuelTransaction) {
-        let context = stack.viewContext
-        let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
-        request.predicate = NSPredicate(format: "id == %@", tx.id as CVarArg)
-        if let object = try? context.fetch(request).first {
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: backgroundContext)
+            object.setValue(tx.id, forKey: "id")
             object.setValue(tx.date, forKey: "date")
             object.setValue(Int64(tx.pumpID), forKey: "pumpID")
             object.setValue(tx.fuelType, forKey: "fuelType")
@@ -466,18 +458,85 @@ public final class StorageManager {
             object.setValue(tx.customerID, forKey: "customerID")
             object.setValue(tx.shiftID, forKey: "shiftID")
             object.setValue(tx.attendantName, forKey: "attendantName")
-            stack.saveContext()
+            try? backgroundContext.save()
+        }
+    }
+
+    public func updateTransaction(_ tx: FuelTransaction) {
+        guard let idx = transactions.firstIndex(where: { $0.id == tx.id }) else { return }
+        let oldTx = transactions[idx]
+        
+        // Handle tank level adjustments if liters or fuel type changed
+        if oldTx.fuelType == tx.fuelType {
+            let delta = tx.liters - oldTx.liters
+            if let tankIdx = fuelTanks.firstIndex(where: { $0.type == tx.fuelType }) {
+                var tank = fuelTanks[tankIdx]
+                tank.current -= delta
+                tank.lastUpdated = .now
+                fuelTanks[tankIdx] = tank
+            }
+        } else {
+            // Revert old fuel type tank
+            if let oldTankIdx = fuelTanks.firstIndex(where: { $0.type == oldTx.fuelType }) {
+                var oldTank = fuelTanks[oldTankIdx]
+                oldTank.current += oldTx.liters
+                fuelTanks[oldTankIdx] = oldTank
+            }
+            // Deduct from new fuel type tank
+            if let newTankIdx = fuelTanks.firstIndex(where: { $0.type == tx.fuelType }) {
+                var newTank = fuelTanks[newTankIdx]
+                newTank.current -= tx.liters
+                fuelTanks[newTankIdx] = newTank
+            }
+        }
+
+        transactions[idx] = tx
+        saveTransactionToCoreDataManual(tx)
+        saveAll()
+    }
+    
+    private func saveTransactionToCoreDataManual(_ tx: FuelTransaction) {
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
+            request.predicate = NSPredicate(format: "id == %@", tx.id as CVarArg)
+            if let object = try? backgroundContext.fetch(request).first {
+                object.setValue(tx.date, forKey: "date")
+                object.setValue(Int64(tx.pumpID), forKey: "pumpID")
+                object.setValue(tx.fuelType, forKey: "fuelType")
+                object.setValue(tx.liters, forKey: "liters")
+                object.setValue(tx.amount, forKey: "amount")
+                object.setValue(tx.paymentMethod, forKey: "paymentMethod")
+                object.setValue(tx.notes, forKey: "notes")
+                object.setValue(tx.customerID, forKey: "customerID")
+                object.setValue(tx.shiftID, forKey: "shiftID")
+                object.setValue(tx.attendantName, forKey: "attendantName")
+                try? backgroundContext.save()
+            }
         }
     }
 
     public func deleteTransaction(_ id: UUID) {
-        transactions.removeAll { $0.id == id }
-        let context = stack.viewContext
-        let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        if let object = try? context.fetch(request).first {
-            context.delete(object)
-            stack.saveContext()
+        if let idx = transactions.firstIndex(where: { $0.id == id }) {
+            let tx = transactions[idx]
+            // Revert tank levels
+            if let tankIdx = fuelTanks.firstIndex(where: { $0.type == tx.fuelType }) {
+                var tank = fuelTanks[tankIdx]
+                tank.current += tx.liters
+                tank.lastUpdated = .now
+                fuelTanks[tankIdx] = tank
+            }
+            transactions.remove(at: idx)
+        }
+        
+        let backgroundContext = stack.newBackgroundContext()
+        backgroundContext.perform {
+            let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
+            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            if let object = try? backgroundContext.fetch(request).first {
+                backgroundContext.delete(object)
+                try? backgroundContext.save()
+            }
         }
         saveAll()
     }

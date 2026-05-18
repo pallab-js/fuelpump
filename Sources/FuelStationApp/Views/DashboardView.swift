@@ -72,6 +72,7 @@ struct DashboardView: View {
         VStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.title3)
+                .accessibilityHidden(true)
             Text(value)
                 .font(.title2)
                 .fontWeight(.bold)
@@ -82,6 +83,8 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value)")
     }
 
     private var chartsSection: some View {

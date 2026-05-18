@@ -53,6 +53,8 @@ struct InventoryView: View {
                     ProgressView(value: tank.fillRatio)
                         .tankProgressTint(tank)
                         .frame(width: 60)
+                        .accessibilityLabel("Tank for \(tank.type)")
+                        .accessibilityValue("\(Int(tank.fillRatio * 100)) percent full")
                     Text("\(Int(tank.fillRatio * 100))%")
                         .font(.caption)
                         .frame(width: 36, alignment: .trailing)

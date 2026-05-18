@@ -103,6 +103,13 @@ public final class CoreDataStack {
         container.viewContext
     }
     
+    public func newBackgroundContext() -> NSManagedObjectContext {
+        let context = container.newBackgroundContext()
+        context.automaticallyMergesChangesFromParent = true
+        context.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
+        return context
+    }
+    
     public func saveContext() {
         let context = container.viewContext
         if context.hasChanges {

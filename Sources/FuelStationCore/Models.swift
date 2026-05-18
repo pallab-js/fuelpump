@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FuelTank: Identifiable, Codable, Equatable, Hashable {
+public struct FuelTank: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var type: String
     public var capacity: Double
@@ -21,11 +21,11 @@ public struct FuelTank: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public enum PumpStatus: String, Codable, CaseIterable, Hashable {
+public enum PumpStatus: String, Codable, CaseIterable, Hashable, Sendable {
     case active, offline, maintenance
 }
 
-public struct Pump: Identifiable, Codable, Equatable, Hashable {
+public struct Pump: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var number: Int
     public var label: String
@@ -45,7 +45,7 @@ public struct Pump: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct FuelTransaction: Identifiable, Codable, Equatable, Hashable {
+public struct FuelTransaction: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var date: Date
     public var pumpID: Int
@@ -73,7 +73,7 @@ public struct FuelTransaction: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct Delivery: Identifiable, Codable, Equatable, Hashable {
+public struct Delivery: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var date: Date
     public var supplier: String
@@ -93,7 +93,7 @@ public struct Delivery: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct Expense: Identifiable, Codable, Equatable, Hashable {
+public struct Expense: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var date: Date
     public var category: String
@@ -111,7 +111,7 @@ public struct Expense: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct Customer: Identifiable, Codable, Equatable, Hashable {
+public struct Customer: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var phone: String
@@ -131,6 +131,49 @@ public struct Customer: Identifiable, Codable, Equatable, Hashable {
         self.creditBalance = creditBalance
         self.registrationDate = registrationDate
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, phone, email, loyaltyPoints, totalSpent, creditBalance, registrationDate
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        
+        let encPhone = try container.decode(String.self, forKey: .phone)
+        phone = (try? EncryptionManager.shared.decrypt(encPhone)) ?? encPhone
+        
+        if let encEmail = try container.decodeIfPresent(String.self, forKey: .email) {
+            email = (try? EncryptionManager.shared.decrypt(encEmail)) ?? encEmail
+        } else {
+            email = nil
+        }
+        
+        loyaltyPoints = try container.decode(Int.self, forKey: .loyaltyPoints)
+        totalSpent = try container.decode(Double.self, forKey: .totalSpent)
+        creditBalance = try container.decode(Double.self, forKey: .creditBalance)
+        registrationDate = try container.decode(Date.self, forKey: .registrationDate)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        
+        let encPhone = (try? EncryptionManager.shared.encrypt(phone)) ?? phone
+        try container.encode(encPhone, forKey: .phone)
+        
+        if let email = email {
+            let encEmail = (try? EncryptionManager.shared.encrypt(email)) ?? email
+            try container.encode(encEmail, forKey: .email)
+        }
+        
+        try container.encode(loyaltyPoints, forKey: .loyaltyPoints)
+        try container.encode(totalSpent, forKey: .totalSpent)
+        try container.encode(creditBalance, forKey: .creditBalance)
+        try container.encode(registrationDate, forKey: .registrationDate)
+    }
 }
 
 public struct DashboardSection: Identifiable, Codable, Equatable, Hashable, Sendable {
@@ -148,11 +191,11 @@ public struct DashboardSection: Identifiable, Codable, Equatable, Hashable, Send
     ]
 }
 
-public enum ShiftStatus: String, Codable, CaseIterable, Hashable {
+public enum ShiftStatus: String, Codable, CaseIterable, Hashable, Sendable {
     case active, closed
 }
 
-public struct Shift: Identifiable, Codable, Equatable, Hashable {
+public struct Shift: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var startTime: Date
     public var endTime: Date?
@@ -174,7 +217,7 @@ public struct Shift: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct LubeProduct: Identifiable, Codable, Equatable, Hashable {
+public struct LubeProduct: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var brand: String
@@ -194,7 +237,7 @@ public struct LubeProduct: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct LubeSale: Identifiable, Codable, Equatable, Hashable {
+public struct LubeSale: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var date: Date
     public var productID: UUID
@@ -214,7 +257,7 @@ public struct LubeSale: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-public struct StationSettings: Identifiable, Codable, Equatable, Hashable {
+public struct StationSettings: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var id: UUID
     public var taxRate: Double
     public var currency: String
