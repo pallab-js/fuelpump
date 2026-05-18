@@ -29,7 +29,7 @@ struct FuelTank: Codable, Equatable {
     var fillRatio: Double { capacity > 0 ? min(max(current / capacity, 0), 1) : 0 }
 }
 
-struct Transaction: Codable { var pumpID: Int; var fuelType: String; var liters: Double; var amount: Double; var paymentMethod: String }
+struct FuelTransaction: Codable { var pumpID: Int; var fuelType: String; var liters: Double; var amount: Double; var paymentMethod: String }
 struct Delivery: Codable { var supplier: String; var fuelType: String; var liters: Double; var cost: Double }
 struct Expense: Codable { var category: String; var amount: Double }
 

@@ -430,9 +430,16 @@ struct DailyClosureView: View {
             Button("Export Report (CSV)", systemImage: "square.and.arrow.up") {
                 exportCSV()
             }
+            .buttonStyle(.bordered)
+            
+            Button("Done") {
+                dismiss()
+            }
             .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 private func exportCSV() {
     var lines: [String] = []

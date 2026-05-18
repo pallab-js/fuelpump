@@ -52,7 +52,11 @@ struct DashboardView: View {
         .sheet(isPresented: $showingAddTx) { AddTransactionView() }
         .sheet(isPresented: $showingAddDelivery) { AddDeliveryView() }
         .sheet(isPresented: $showingAddExpense) { AddExpenseView() }
-        .sheet(isPresented: $showingClosure) { DailyClosureView() }
+        .sheet(isPresented: $showingClosure) {
+            NavigationStack {
+                DailyClosureView()
+            }
+        }
     }
 
     private var kpiSection: some View {
