@@ -18,20 +18,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Swift 6.3
+      - name: Install Swift 6.3.3
         run: |
-          curl -s https://raw.githubusercontent.com/swiftlang/swiftly/main/install.sh | bash
+          curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg
+          installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+          ~/.swiftly/bin/swiftly init --quiet-shell-followup
           ~/.swiftly/bin/swiftly install 6.3.3
-          echo "$HOME/.swiftly/bin" >> $GITHUB_PATH
+          ~/.swiftly/bin/swiftly use 6.3.3
 
       - name: Swift version
-        run: swift --version
+        run: |
+          source ~/.swiftly/env.sh
+          swift --version
 
       - name: Build (debug)
-        run: swift build
+        run: |
+          source ~/.swiftly/env.sh
+          swift build
 
       - name: Build (release)
-        run: swift build -c release
+        run: |
+          source ~/.swiftly/env.sh
+          swift build -c release
 
       - name: Validate
-        run: bash validate.sh
+        run: |
+          source ~/.swiftly/env.sh
+          bash validate.sh
