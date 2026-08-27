@@ -6,6 +6,8 @@ import SwiftUI
 struct SearchView: View {
     @Environment(StorageManager.self) private var storage
     @State private var searchText = ""
+    @State private var debouncedSearchText = ""
+    @State private var searchTask: Task<Void, Never>?
     
     enum SearchCategory: String, CaseIterable {
         case all = "All"
@@ -21,10 +23,19 @@ struct SearchView: View {
         VStack(spacing: 0) {
             searchBar
             
-            if searchText.isEmpty {
+            if debouncedSearchText.isEmpty {
                 emptyState
             } else {
                 resultsList
+            }
+        }
+        .onChange(of: searchText) { _, newValue in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                if !Task.isCancelled {
+                    debouncedSearchText = newValue
+                }
             }
         }
     }
@@ -74,13 +85,36 @@ struct SearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var resultsEmpty: Bool {
+        let customerMatches = storage.customers.filter {
+            $0.name.localizedCaseInsensitiveContains(debouncedSearchText) ||
+            $0.phone.contains(debouncedSearchText) ||
+            ($0.email?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
+        }
+        let txMatches = storage.transactions.filter {
+            ($0.notes?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false) ||
+            $0.fuelType.localizedCaseInsensitiveContains(debouncedSearchText) ||
+            "\($0.pumpID)".contains(debouncedSearchText)
+        }
+        let deliveryMatches = storage.deliveries.filter {
+            $0.supplier.localizedCaseInsensitiveContains(debouncedSearchText) ||
+            $0.fuelType.localizedCaseInsensitiveContains(debouncedSearchText) ||
+            ($0.invoiceRef?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
+        }
+        let expenseMatches = storage.expenses.filter {
+            $0.category.localizedCaseInsensitiveContains(debouncedSearchText) ||
+            ($0.note?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
+        }
+        return customerMatches.isEmpty && txMatches.isEmpty && deliveryMatches.isEmpty && expenseMatches.isEmpty
+    }
+
     private var resultsList: some View {
         List {
             if category == .all || category == .customers {
                 let matches = storage.customers.filter {
-                    $0.name.localizedCaseInsensitiveContains(searchText) ||
-                    $0.phone.contains(searchText) ||
-                    ($0.email?.localizedCaseInsensitiveContains(searchText) ?? false)
+                    $0.name.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                    $0.phone.contains(debouncedSearchText) ||
+                    ($0.email?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
                 }
                 if !matches.isEmpty {
                     Section("Customers") {
@@ -93,9 +127,9 @@ struct SearchView: View {
             
             if category == .all || category == .transactions {
                 let matches = storage.transactions.filter {
-                    ($0.notes?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                    $0.fuelType.localizedCaseInsensitiveContains(searchText) ||
-                    "\($0.pumpID)".contains(searchText)
+                    ($0.notes?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false) ||
+                    $0.fuelType.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                    "\($0.pumpID)".contains(debouncedSearchText)
                 }
                 if !matches.isEmpty {
                     Section("Transactions") {
@@ -108,9 +142,9 @@ struct SearchView: View {
             
             if category == .all || category == .deliveries {
                 let matches = storage.deliveries.filter {
-                    $0.supplier.localizedCaseInsensitiveContains(searchText) ||
-                    $0.fuelType.localizedCaseInsensitiveContains(searchText) ||
-                    ($0.invoiceRef?.localizedCaseInsensitiveContains(searchText) ?? false)
+                    $0.supplier.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                    $0.fuelType.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                    ($0.invoiceRef?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
                 }
                 if !matches.isEmpty {
                     Section("Deliveries") {
@@ -123,8 +157,8 @@ struct SearchView: View {
             
             if category == .all || category == .expenses {
                 let matches = storage.expenses.filter {
-                    $0.category.localizedCaseInsensitiveContains(searchText) ||
-                    ($0.note?.localizedCaseInsensitiveContains(searchText) ?? false)
+                    $0.category.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                    ($0.note?.localizedCaseInsensitiveContains(debouncedSearchText) ?? false)
                 }
                 if !matches.isEmpty {
                     Section("Expenses") {
@@ -133,6 +167,15 @@ struct SearchView: View {
                         }
                     }
                 }
+            }
+        }
+        .overlay {
+            if resultsEmpty {
+                ContentUnavailableView(
+                    "No Results",
+                    systemImage: "magnifyingglass",
+                    description: Text("No results for \"\(debouncedSearchText)\"")
+                )
             }
         }
     }

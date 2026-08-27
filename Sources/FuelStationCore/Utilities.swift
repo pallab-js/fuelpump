@@ -62,8 +62,7 @@ public func formatVolume(_ value: Double, localeIdentifier: String = "en_IN") ->
     f.locale = Locale(identifier: localeIdentifier)
     f.minimumFractionDigits = 2
     f.maximumFractionDigits = 2
-    let vol = f.string(from: NSNumber(value: value)) ?? "0.00"
-    return "\(vol) Litres"
+    return f.string(from: NSNumber(value: value)) ?? "0.00"
 }
 
 public func formatDate(_ date: Date) -> String {
@@ -76,13 +75,26 @@ public func formatDateOnly(_ date: Date) -> String {
 
 public func generateCSVRows<T: Encodable>(_ items: [T]) -> String {
     guard let first = items.first else { return "" }
-    let mirror = Mirror(reflecting: first)
-    let headers = mirror.children.map { $0.label ?? "field" }.joined(separator: ",")
-    var lines = [headers]
+    
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    encoder.outputFormatting = .sortedKeys
+    
+    guard let data = try? encoder.encode(first),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        return ""
+    }
+    
+    let headers = Array(json.keys)
+    var lines = [headers.joined(separator: ",")]
+    
     for item in items {
-        let mirror = Mirror(reflecting: item)
-        let row = mirror.children.map { _, value -> String in
-            let str = String(describing: value)
+        guard let itemData = try? encoder.encode(item),
+              let itemJson = try? JSONSerialization.jsonObject(with: itemData) as? [String: Any] else {
+            continue
+        }
+        let row = headers.map { key -> String in
+            let str = String(describing: itemJson[key] ?? "")
             if str.contains(",") || str.contains("\"") || str.contains("\n") {
                 let escaped = str.replacingOccurrences(of: "\"", with: "\"\"")
                 return "\"\(escaped)\""

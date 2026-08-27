@@ -28,7 +28,7 @@ struct ReportsView: View {
     private var profit: Double { revenue - totalExpenses - totalDeliveriesCost }
     private var txCount: Int { rangeTx.count }
     private var avgPerTx: Double { txCount > 0 ? revenue / Double(txCount) : 0 }
-    @State private var selectedClosureDate: Date?
+    @State private var selectedClosureDate: ClosureDateWrapper?
 
     var body: some View {
     ScrollView {
@@ -43,9 +43,9 @@ struct ReportsView: View {
         }
         .padding()
     }
-    .sheet(item: $selectedClosureDate) { date in
+    .sheet(item: $selectedClosureDate) { wrapper in
         NavigationStack {
-            DailyClosureView(date: date)
+            DailyClosureView(date: wrapper.date)
         }
     }
 }
@@ -143,6 +143,7 @@ struct ReportsView: View {
         .frame(maxWidth: .infinity)
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 6).fill(.background))
+        .accessibilityElement(children: .combine)
     }
 
     private func infoCard(_ title: LocalizedStringKey, value: String) -> some View {
@@ -155,6 +156,7 @@ struct ReportsView: View {
         .frame(maxWidth: .infinity)
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 6).fill(.background))
+        .accessibilityElement(children: .combine)
     }
 
     private var salesTrendSection: some View {
@@ -190,7 +192,7 @@ struct ReportsView: View {
                     }
                     TableColumn("Report") { item in
                         Button("View") {
-                            selectedClosureDate = item.date
+                            selectedClosureDate = ClosureDateWrapper(item.date)
                         }
                         .buttonStyle(.borderless)
                         .controlSize(.small)
@@ -225,7 +227,7 @@ struct ReportsView: View {
             "Deliveries Cost,\(totalDeliveriesCost)",
             "Gross Profit,\(profit)",
             "Transactions,\(txCount)",
-            "Avg Per FuelTransaction,\(avgPerTx)",
+            "Avg Per Transaction,\(avgPerTx)",
             "",
             "Daily Breakdown",
             "Date,Sales",
@@ -268,7 +270,9 @@ struct ReportsView: View {
     }
 }
 
-extension Date: @retroactive Identifiable {
-    public var id: Self { self }
+struct ClosureDateWrapper: Identifiable {
+    let id = UUID()
+    let date: Date
+    init(_ date: Date) { self.date = date }
 }
 

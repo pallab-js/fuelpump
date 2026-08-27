@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Security
 
 public enum EncryptionError: Error {
     case encryptionFailed
@@ -10,28 +11,25 @@ public enum EncryptionError: Error {
 public final class EncryptionManager: Sendable {
     public static let shared = EncryptionManager()
     
-    // In a production app, this key should be stored in the Keychain.
-    // For this prototype, we'll derive it from a persistent machine-specific identifier
-    // or use a static salt (which is still better than plaintext).
     private let key: SymmetricKey
+    private static let keychainService = "com.fuelstation.encryption"
+    private static let keychainAccount = "aes-key"
     
     private init() {
-        // Simple key derivation for demonstration. 
-        // Real apps use Keychain to store a randomly generated SymmetricKey.
-        let secret = "fuelpump-station-manager-secure-salt"
-        let salt = "static-salt-123".data(using: .utf8)!
-        let keyData = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: SymmetricKey(data: secret.data(using: .utf8)!),
-            salt: salt,
-            outputByteCount: 32
-        )
-        self.key = keyData
+        if let existingKey = Self.loadKeyFromKeychain() {
+            self.key = existingKey
+        } else {
+            let newKey = SymmetricKey(size: .bits256)
+            Self.saveKeyToKeychain(newKey)
+            self.key = newKey
+        }
     }
     
     public func encrypt(_ string: String) throws -> String {
         guard let data = string.data(using: .utf8) else { throw EncryptionError.encryptionFailed }
         let sealedBox = try AES.GCM.seal(data, using: key)
-        return sealedBox.combined!.base64EncodedString()
+        guard let combined = sealedBox.combined else { throw EncryptionError.encryptionFailed }
+        return combined.base64EncodedString()
     }
     
     public func decrypt(_ base64String: String) throws -> String {
@@ -40,5 +38,34 @@ public final class EncryptionManager: Sendable {
         let decryptedData = try AES.GCM.open(sealedBox, using: key)
         guard let string = String(data: decryptedData, encoding: .utf8) else { throw EncryptionError.decryptionFailed }
         return string
+    }
+    
+    // MARK: - Keychain Helpers
+    
+    private static func saveKeyToKeychain(_ key: SymmetricKey) {
+        let keyData = key.withUnsafeBytes { Data($0) }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecValueData as String: keyData,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        SecItemDelete(query as CFDictionary)
+        SecItemAdd(query as CFDictionary, nil)
+    }
+    
+    private static func loadKeyFromKeychain() -> SymmetricKey? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return SymmetricKey(data: data)
     }
 }

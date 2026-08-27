@@ -4,6 +4,7 @@
 "Transactions" = "Transactions";
 "Finances" = "Finances";
 "Settings" = "Settings";
+"Reports" = "Reports";
 
 // Dashboard
 "Today's Sales" = "Today's Sales";
@@ -17,8 +18,6 @@
 "Delivery" = "Delivery";
 "Expense" = "Expense";
 "Closure" = "Closure";
-"7 Days" = "7 Days";
-"30 Days" = "30 Days";
 
 // Transactions
 "Select a transaction" = "Select a transaction";
@@ -65,20 +64,14 @@
 "No deliveries recorded" = "No deliveries recorded";
 
 // Reports
-"Reports" = "Reports";
-"Profit & Loss Summary" = "Profit & Loss Summary";
 "Daily Breakdown" = "Daily Breakdown";
 "No transactions in this period" = "No transactions in this period";
 "Export Report (CSV)" = "Export Report (CSV)";
 "Export Data (JSON)" = "Export Data (JSON)";
-"From" = "From";
-"To" = "To";
-"Today" = "Today";
 "7 Days" = "7 Days";
 "30 Days" = "30 Days";
 "90 Days" = "90 Days";
 "Year" = "Year";
-"Transactions" = "Transactions";
 "Avg / Tx" = "Avg / Tx";
 "Sales" = "Sales";
 
@@ -90,7 +83,6 @@
 "Deliveries Cost" = "Deliveries Cost";
 "Gross Profit" = "Gross Profit";
 "Deliveries" = "Deliveries";
-"No deliveries recorded" = "No deliveries recorded";
 "Expense Details" = "Expense Details";
 "Category" = "Category";
 "Note" = "Note";
@@ -100,6 +92,7 @@
 "Export Data" = "Export Data";
 
 // Settings
+"Station Details" = "Station Details";
 "Financial Settings" = "Financial Settings";
 "Tax Rate" = "Tax Rate";
 "Currency" = "Currency";
@@ -117,6 +110,8 @@
 "About" = "About";
 "App Version" = "App Version";
 "Data Size" = "Data Size";
+"Dashboard Layout" = "Dashboard Layout";
+"Privacy & Security Notice" = "Privacy & Security Notice";
 
 // Charts
 "Sales Trend" = "Sales Trend";
@@ -144,7 +139,6 @@
 "Expected Cash (from Cash transactions)" = "Expected Cash (from Cash transactions)";
 "Declared Cash" = "Declared Cash";
 "Difference" = "Difference";
-"Export Report (CSV)" = "Export Report (CSV)";
 "Close" = "Close";
 
 // Validation Messages
@@ -172,12 +166,8 @@
 "OK" = "OK";
 
 // Currencies (displayed in UI)
+"INR (₹)" = "INR (₹)";
 "USD ($)" = "USD ($)";
 "EUR (€)" = "EUR (€)";
 "GBP (£)" = "GBP (£)";
 "JPY (¥)" = "JPY (¥)";
-
-// Picker Labels
-"Fuel Type" = "Fuel Type";
-"Notes" = "Notes";
-"Receipt" = "Receipt";

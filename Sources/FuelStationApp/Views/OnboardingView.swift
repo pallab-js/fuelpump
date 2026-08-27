@@ -59,8 +59,7 @@ struct OnboardingView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(currentStep == 2 && storage.settings.fuelTypes.isEmpty)
-                .disabled(currentStep == 3 && storage.fuelTanks.isEmpty)
+                .disabled((currentStep == 2 && storage.settings.fuelTypes.isEmpty) || (currentStep == 3 && storage.fuelTanks.isEmpty))
             }
             .padding()
         }
@@ -207,7 +206,7 @@ struct OnboardingView: View {
                         HStack {
                             Text(tank.type)
                             Spacer()
-                            Text("\(storage.formatVolume(tank.capacity)) capacity")
+                            Text("\(storage.formatVolume(tank.capacity)) L capacity")
                                 .foregroundStyle(.secondary)
                         }
                     }

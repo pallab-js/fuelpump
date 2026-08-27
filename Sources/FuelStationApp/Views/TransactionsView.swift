@@ -14,6 +14,7 @@ struct TransactionsView: View {
     @State private var transactionSort: [KeyPathComparator<FuelTransaction>] = [
         KeyPathComparator(\.date, order: .reverse)
     ]
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         HSplitView {
@@ -36,18 +37,26 @@ struct TransactionsView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button("New FuelTransaction", systemImage: "plus") { showingAdd = true }
+                Button("New Transaction", systemImage: "plus") { showingAdd = true }
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Delete", systemImage: "trash") {
-                    if let id = selectedTransactionID {
-                        storage.deleteTransaction(id)
-                        selectedTransactionID = nil
-                    }
+                    showingDeleteConfirmation = true
                 }
                 .disabled(selectedTransactionID == nil)
             }
         }
         .sheet(isPresented: $showingAdd) { AddTransactionView() }
+        .alert("Delete Transaction?", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if let id = selectedTransactionID {
+                    storage.deleteTransaction(id)
+                    selectedTransactionID = nil
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this transaction? The fuel tank levels will be reverted.")
+        }
     }
 
     private var filters: some View {
@@ -65,7 +74,7 @@ struct TransactionsView: View {
             .frame(width: 120)
             Picker("Payment", selection: $filterPayment) {
                 Text("All Methods").tag(nil as String?)
-                ForEach(["Cash", "Card", "Mobile", "Fuel Card"], id: \.self) { m in
+                ForEach(["Cash", "Card", "Mobile", "UPI", "Credit", "Fuel Card"], id: \.self) { m in
                     Text(m).tag(m as String?)
                 }
             }
@@ -127,11 +136,11 @@ struct TransactionsView: View {
 
     private func transactionDetail(_ tx: FuelTransaction) -> some View {
         Form {
-            Section("FuelTransaction Details") {
+            Section("Transaction Details") {
                 LabeledContent("Date", value: formatDate(tx.date))
                 LabeledContent("Pump", value: "\(tx.pumpID)")
                 LabeledContent("Fuel", value: tx.fuelType)
-                LabeledContent("Liters", value: storage.formatVolume(tx.liters))
+                LabeledContent("Liters", value: "\(storage.formatVolume(tx.liters)) L")
                 LabeledContent("Amount", value: storage.formatCurrency(tx.amount))
                 LabeledContent("Payment", value: tx.paymentMethod)
                 if let notes = tx.notes, !notes.isEmpty {
@@ -185,6 +194,9 @@ struct AddTransactionView: View {
     @State private var attendantName: String? = nil
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
+    @State private var isManualAmount = false
+
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
 
     private var isValid: Bool {
         liters > 0 && amount > 0 && !fuelType.isEmpty
@@ -241,7 +253,7 @@ struct AddTransactionView: View {
                 }
             }
 
-            Section("FuelTransaction Details") {
+            Section("Transaction Details") {
                 LabeledContent("Price / L") {
                     Text(storage.formatCurrency(pricePerLiter))
                         .foregroundStyle(.secondary)
@@ -253,11 +265,14 @@ struct AddTransactionView: View {
                 }
                 HStack {
                     Text("Amount")
-                    TextField("Amount", value: $amount, formatter: currencyFormatter)
+                    TextField("Amount", value: $amount, formatter: currencyFmt)
                         .frame(width: 100)
+                        .onChange(of: amount) { _, _ in
+                            isManualAmount = true
+                        }
                 }
                 if !fuelType.isEmpty {
-                    Text("Calculated: \(storage.formatVolume(liters)) × \(storage.formatCurrency(pricePerLiter)) = \(storage.formatCurrency(liters * pricePerLiter))")
+                    Text("Calculated: \(storage.formatVolume(liters)) L × \(storage.formatCurrency(pricePerLiter)) = \(storage.formatCurrency(liters * pricePerLiter))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -315,12 +330,15 @@ struct AddTransactionView: View {
             }
         }
         .onChange(of: fuelType) { _, newFuel in
+            isManualAmount = false
             amount = storage.calculatedAmount(liters: liters, fuelType: newFuel)
         }
         .onChange(of: liters) { _, newLiters in
             guard !fuelType.isEmpty else { return }
-            amount = storage.calculatedAmount(liters: newLiters, fuelType: fuelType)
+            if !isManualAmount {
+                amount = storage.calculatedAmount(liters: newLiters, fuelType: fuelType)
+            }
         }
-        .frame(minWidth: 450, idealWidth: 450)
+        .frame(minWidth: 400, idealWidth: 400)
     }
 }

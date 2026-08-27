@@ -25,7 +25,7 @@ struct ReceiptView: View {
             
             footer
         }
-        .padding(30)
+        .padding()
         .frame(width: 350)
         .background(Color.white)
         .foregroundStyle(.black)
@@ -61,8 +61,8 @@ struct ReceiptView: View {
             detailRow(label: "Date:", value: formatDate(transaction.date))
             detailRow(label: "Pump:", value: "\(transaction.pumpID)")
             detailRow(label: "Product:", value: transaction.fuelType)
-            detailRow(label: "Quantity:", value: storage.formatVolume(transaction.liters))
-            detailRow(label: "Rate/Litre:", value: storage.formatCurrency(transaction.amount / transaction.liters))
+            detailRow(label: "Quantity:", value: "\(storage.formatVolume(transaction.liters)) L")
+            detailRow(label: "Rate/Litre:", value: storage.formatCurrency(transaction.liters > 0 ? transaction.amount / transaction.liters : 0))
             detailRow(label: "Payment:", value: transaction.paymentMethod)
             
             Divider()

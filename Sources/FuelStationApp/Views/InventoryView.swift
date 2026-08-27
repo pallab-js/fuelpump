@@ -8,6 +8,7 @@ struct InventoryView: View {
     @State private var showingAddTank = false
     @State private var showingAddDelivery = false
     @State private var selectedTank: FuelTank?
+    @State private var tankToDelete: FuelTank?
 
     var body: some View {
         HSplitView {
@@ -63,12 +64,34 @@ struct InventoryView: View {
             }
             .onDelete { indexSet in
                 for idx in indexSet {
-                    storage.deleteTank(storage.fuelTanks[idx].id)
+                    tankToDelete = storage.fuelTanks[idx]
                 }
             }
         }
         .listStyle(.inset)
         .alternatingRowBackgrounds()
+        .overlay {
+            if storage.fuelTanks.isEmpty {
+                ContentUnavailableView("No Tanks", systemImage: "fuelpump", description: Text("Add your first fuel tank to get started."))
+            }
+        }
+        .alert("Delete Tank?", isPresented: Binding(
+            get: { tankToDelete != nil },
+            set: { if !$0 { tankToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { tankToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let tank = tankToDelete {
+                    storage.deleteTank(tank.id)
+                    if selectedTank?.id == tank.id { selectedTank = nil }
+                    tankToDelete = nil
+                }
+            }
+        } message: {
+            if let tank = tankToDelete {
+                Text("Are you sure you want to delete the \(tank.type) tank? This may affect transaction history.")
+            }
+        }
     }
 
     private func tankDetail(_ tank: FuelTank) -> some View {
@@ -134,7 +157,7 @@ struct InventoryView: View {
         PURCHASE ORDER
         ==============
         Date: \(dateStr)
-        Station: FuelPump Station
+        Station: \(storage.settings.stationName)
         GSTIN: \(storage.settings.gstin)
         
         To: Primary Supplier
@@ -208,6 +231,10 @@ struct AddDeliveryView: View {
     @State private var invoiceRef = ""
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
+    @State private var showExcessAlert = false
+    @State private var excessAmount: Double = 0
+
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
 
     private var isValid: Bool {
         !supplier.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -236,7 +263,7 @@ struct AddDeliveryView: View {
             }
             HStack {
                 Text("Cost")
-                TextField("Cost", value: $cost, formatter: currencyFormatter)
+                TextField("Cost", value: $cost, formatter: currencyFmt)
                     .frame(width: 100)
             }
             TextField("Invoice Ref (optional)", text: $invoiceRef)
@@ -254,8 +281,13 @@ struct AddDeliveryView: View {
                         showValidationAlert = true
                         return
                     }
-                    storage.addDelivery(Delivery(supplier: supplier, fuelType: fuelType, liters: liters, cost: cost, invoiceRef: invoiceRef.isEmpty ? nil : invoiceRef))
-                    dismiss()
+                    let excess = storage.addDelivery(Delivery(supplier: supplier, fuelType: fuelType, liters: liters, cost: cost, invoiceRef: invoiceRef.isEmpty ? nil : invoiceRef))
+                    if excess > 0 {
+                        excessAmount = excess
+                        showExcessAlert = true
+                    } else {
+                        dismiss()
+                    }
                 }
             }
         }
@@ -263,6 +295,11 @@ struct AddDeliveryView: View {
             Button("OK") {}
         } message: {
             Text(validationMessage)
+        }
+        .alert("Delivery Exceeds Capacity", isPresented: $showExcessAlert) {
+            Button("OK") {}
+        } message: {
+            Text("This delivery exceeds the tank capacity by \(storage.formatVolume(excessAmount)). The excess fuel was not added to the tank.")
         }
         .frame(minWidth: 400, idealWidth: 400)
     }

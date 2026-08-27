@@ -7,6 +7,7 @@ struct PumpManagementView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingAddPump = false
     @State private var selectedPump: Pump?
+    @State private var pumpToDelete: Pump?
 
     var body: some View {
         HSplitView {
@@ -54,12 +55,34 @@ struct PumpManagementView: View {
             }
             .onDelete { indexSet in
                 for idx in indexSet {
-                    storage.deletePump(storage.pumps[idx].id)
+                    pumpToDelete = storage.pumps[idx]
                 }
             }
         }
         .listStyle(.inset)
         .alternatingRowBackgrounds()
+        .overlay {
+            if storage.pumps.isEmpty {
+                ContentUnavailableView("No Pumps", systemImage: "fuelpump", description: Text("Add your first pump to get started."))
+            }
+        }
+        .alert("Delete Pump?", isPresented: Binding(
+            get: { pumpToDelete != nil },
+            set: { if !$0 { pumpToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { pumpToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let pump = pumpToDelete {
+                    storage.deletePump(pump.id)
+                    if selectedPump?.id == pump.id { selectedPump = nil }
+                    pumpToDelete = nil
+                }
+            }
+        } message: {
+            if let pump = pumpToDelete {
+                Text("Are you sure you want to delete \(pump.label)? This will remove all associations with transactions.")
+            }
+        }
     }
 
     private func pumpDetail(_ pump: Pump) -> some View {
@@ -164,10 +187,20 @@ struct AddPumpView: View {
     @State private var number = 1
     @State private var label = ""
     @State private var fuelType = ""
+    @State private var showValidationAlert = false
+
+    private var isDuplicate: Bool {
+        storage.pumps.contains(where: { $0.number == number })
+    }
 
     var body: some View {
         Form {
             Stepper("Pump Number: \(number)", value: $number, in: 1...99)
+            if isDuplicate {
+                Text("A pump with this number already exists")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
             TextField("Label (Optional)", text: $label, prompt: Text("e.g. South Wing Pump 1"))
             Picker("Fuel Type", selection: $fuelType) {
                 ForEach(storage.settings.fuelTypes, id: \.self) { ft in
@@ -188,10 +221,19 @@ struct AddPumpView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add") {
+                    guard !isDuplicate else {
+                        showValidationAlert = true
+                        return
+                    }
                     storage.addPump(Pump(number: number, label: label, fuelType: fuelType))
                     dismiss()
                 }
             }
+        }
+        .alert("Duplicate Pump", isPresented: $showValidationAlert) {
+            Button("OK") {}
+        } message: {
+            Text("A pump with number \(number) already exists. Please choose a different number.")
         }
         .frame(minWidth: 400, idealWidth: 400)
     }

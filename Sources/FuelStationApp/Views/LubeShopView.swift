@@ -62,10 +62,18 @@ struct LubeShopView: View {
                 }
             }
         }
+        .listStyle(.inset)
+        .alternatingRowBackgrounds()
+        .overlay {
+            if storage.lubeProducts.isEmpty {
+                ContentUnavailableView("No Products", systemImage: "shippingbox", description: Text("Add your first lube product to get started."))
+            }
+        }
     }
 
     private func productDetail(_ product: LubeProduct) -> some View {
-        Form {
+        let currencyFmt = storage.makeCurrencyFormatter()
+        return Form {
             Section("Product Info") {
                 TextField("Name", text: Binding(get: { product.name }, set: { var p = product; p.name = $0; storage.updateLubeProduct(p) }))
                 TextField("Brand", text: Binding(get: { product.brand }, set: { var p = product; p.brand = $0; storage.updateLubeProduct(p) }))
@@ -76,7 +84,7 @@ struct LubeShopView: View {
             Section("Pricing & Stock") {
                 HStack {
                     Text("Price")
-                    TextField("Amount", value: Binding(get: { product.price }, set: { var p = product; p.price = $0; storage.updateLubeProduct(p) }), formatter: currencyFormatter)
+                    TextField("Amount", value: Binding(get: { product.price }, set: { var p = product; p.price = $0; storage.updateLubeProduct(p) }), formatter: currencyFmt)
                 }
                 Stepper("Stock: \(product.stock)", value: Binding(get: { product.stock }, set: { var p = product; p.stock = $0; storage.updateLubeProduct(p) }), in: 0...999)
             }
@@ -119,13 +127,15 @@ struct AddLubeProductView: View {
     @State private var price = 450.0
     @State private var stock = 10
 
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
+
     var body: some View {
         Form {
             TextField("Product Name", text: $name)
             TextField("Brand", text: $brand)
             TextField("Grade", text: $grade)
             TextField("Unit Size", text: $size)
-            TextField("Price", value: $price, formatter: currencyFormatter)
+            TextField("Price", value: $price, formatter: currencyFmt)
             Stepper("Initial Stock: \(stock)", value: $stock, in: 0...100)
         }
         .padding()
@@ -191,6 +201,7 @@ struct LubeSaleView: View {
                         showErrorAlert = true
                     }
                 }
+                .disabled(quantity <= 0 || quantity > product.stock)
             }
         }
         .alert("Error", isPresented: $showErrorAlert) {

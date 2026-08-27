@@ -272,7 +272,7 @@ struct FuelTypeBarChart: View {
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityLabel("Fuel type: \(item.fuelType)")
-                    .accessibilityValue("\(formatVolume(item.liters)) sold")
+                    .accessibilityValue("\(formatVolume(item.liters)) L sold")
                 }
                 .chartLegend(.hidden)
                 .chartXAxis { AxisMarks { AxisValueLabel() } }

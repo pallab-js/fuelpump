@@ -10,6 +10,8 @@ struct DailyClosureView: View {
     let date: Date
     @State private var declaredCash: Double = 0
 
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
+
     init(date: Date = .now) {
         self.date = date
     }
@@ -174,7 +176,7 @@ struct DailyClosureView: View {
                 summaryCard(title: "Revenue", value: storage.formatCurrency(totalRevenue), color: .green)
                 summaryCard(title: "Transactions", value: "\(dayTransactions.count)", color: .blue)
                 summaryCard(title: "Avg / Tx", value: storage.formatCurrency(avgPerTransaction), color: .orange)
-                summaryCard(title: "Total Liters", value: storage.formatVolume(totalLiters), color: .cyan)
+                summaryCard(title: "Total Liters", value: "\(storage.formatVolume(totalLiters)) L", color: .cyan)
             }
         }
         .padding()
@@ -285,7 +287,7 @@ struct DailyClosureView: View {
                         Text(fuel)
                             .frame(width: 100, alignment: .leading)
                         Spacer()
-                        Text(storage.formatVolume(liters))
+                        Text("\(storage.formatVolume(liters)) L")
                             .frame(width: 80, alignment: .trailing)
                         Text(storage.formatCurrency(amount))
                             .frame(width: 80, alignment: .trailing)
@@ -344,7 +346,7 @@ struct DailyClosureView: View {
                     .font(.headline)
                 Spacer()
                 if totalDeliveriesLiters > 0 {
-                    Text(storage.formatVolume(totalDeliveriesLiters))
+                    Text("\(storage.formatVolume(totalDeliveriesLiters)) L")
                         .fontWeight(.semibold)
                 }
             }
@@ -360,7 +362,7 @@ struct DailyClosureView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text(storage.formatVolume(delivery.liters))
+                        Text("\(storage.formatVolume(delivery.liters)) L")
                             .font(.caption)
                         Text(storage.formatCurrency(delivery.cost))
                             .font(.caption)
@@ -401,7 +403,7 @@ struct DailyClosureView: View {
             HStack {
                 Text("Declared Cash")
                 Spacer()
-                TextField("Declared Cash", value: $declaredCash, formatter: currencyFormatter)
+                TextField("Declared Cash", value: $declaredCash, formatter: currencyFmt)
                     .frame(width: 120)
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
@@ -448,7 +450,7 @@ private func exportCSV() {
     lines.append("Sales Summary")
     lines.append("Revenue,\(totalRevenue)")
     lines.append("Transactions,\(dayTransactions.count)")
-    lines.append("Avg Per FuelTransaction,\(avgPerTransaction)")
+    lines.append("Avg Per Transaction,\(avgPerTransaction)")
     lines.append("Total Liters,\(totalLiters)")
     lines.append("")
     lines.append("Payment Breakdown")

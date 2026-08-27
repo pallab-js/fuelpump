@@ -15,6 +15,8 @@ struct FinancesView: View {
     @State private var deliverySort: [KeyPathComparator<Delivery>] = [
         KeyPathComparator(\.date, order: .reverse)
     ]
+    @State private var showExportError = false
+    @State private var exportErrorMessage = ""
 
     var body: some View {
         HSplitView {
@@ -60,6 +62,11 @@ struct FinancesView: View {
             Button("Export Deliveries (CSV)") { exportCSV(type: "deliveries") }
             Button("Export All (JSON)") { exportJSON() }
             Button("Cancel", role: .cancel) {}
+        }
+        .alert("Export Failed", isPresented: $showExportError) {
+            Button("OK") {}
+        } message: {
+            Text(exportErrorMessage)
         }
     }
 
@@ -133,6 +140,8 @@ struct FinancesView: View {
             .tableStyle(.bordered)
             .alternatingRowBackgrounds()
             .frame(minHeight: 100)
+            .padding()
+            .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary))
         }
     }
 
@@ -203,8 +212,13 @@ struct FinancesView: View {
     }
 
     private func exportJSON() {
-        guard let content = try? storage.fullExportJSON() else { return }
-        saveToFile(content: content, filename: "export.json")
+        do {
+            let content = try storage.fullExportJSON()
+            saveToFile(content: content, filename: "export.json")
+        } catch {
+            exportErrorMessage = error.localizedDescription
+            showExportError = true
+        }
     }
 
     private func saveToFile(content: String, filename: String) {
@@ -230,6 +244,8 @@ struct AddExpenseView: View {
     @State private var note = ""
     @State private var showValidationAlert = false
 
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
+
     var body: some View {
         Form {
             Picker("Category", selection: $category) {
@@ -242,7 +258,7 @@ struct AddExpenseView: View {
             }
             HStack {
                 Text("Amount")
-                TextField("Amount", value: $amount, formatter: currencyFormatter)
+                TextField("Amount", value: $amount, formatter: currencyFmt)
                     .frame(width: 100)
             }
             TextField("Note (optional)", text: $note)
@@ -259,6 +275,7 @@ struct AddExpenseView: View {
                     storage.addExpense(Expense(category: category, amount: amount, note: note.isEmpty ? nil : note))
                     dismiss()
                 }
+                .disabled(amount <= 0)
             }
         }
         .alert("Invalid Input", isPresented: $showValidationAlert) {

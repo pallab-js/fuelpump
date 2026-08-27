@@ -9,7 +9,12 @@ swift build -c release
 
 echo ""
 echo "2. Checking binary exists..."
-BINARY=".build/arm64-apple-macosx/release/FuelStationApp"
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    BINARY=".build/arm64-apple-macosx/release/FuelStationApp"
+else
+    BINARY=".build/x86_64-apple-macosx/release/FuelStationApp"
+fi
 if [ -f "$BINARY" ]; then
     echo "   Binary: $BINARY ($(stat -f%z "$BINARY") bytes)"
 else

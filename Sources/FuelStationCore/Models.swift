@@ -139,7 +139,9 @@ public struct Customer: Identifiable, Codable, Equatable, Hashable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
+        
+        let encName = try container.decode(String.self, forKey: .name)
+        name = (try? EncryptionManager.shared.decrypt(encName)) ?? encName
         
         let encPhone = try container.decode(String.self, forKey: .phone)
         phone = (try? EncryptionManager.shared.decrypt(encPhone)) ?? encPhone
@@ -159,7 +161,9 @@ public struct Customer: Identifiable, Codable, Equatable, Hashable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(name, forKey: .name)
+        
+        let encName = (try? EncryptionManager.shared.encrypt(name)) ?? name
+        try container.encode(encName, forKey: .name)
         
         let encPhone = (try? EncryptionManager.shared.encrypt(phone)) ?? phone
         try container.encode(encPhone, forKey: .phone)

@@ -133,7 +133,7 @@ struct ShiftsView: View {
                 
                 LabeledContent("Total Revenue", value: formatCurrency(total))
                 LabeledContent("Total Volume", value: "\(formatVolume(liters)) L")
-                LabeledContent("FuelTransaction Count", value: "\(txs.count)")
+                LabeledContent("Transaction Count", value: "\(txs.count)")
             }
 
             if !storage.transactions.filter({ $0.shiftID == shift.id }).isEmpty {
@@ -171,6 +171,8 @@ struct StartShiftView: View {
     @State private var attendants: [String] = [""]
     @State private var cash = 1000.0
 
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
+
     var body: some View {
         Form {
             Section("Manager Info") {
@@ -196,7 +198,7 @@ struct StartShiftView: View {
             Section("Initial Float") {
                 HStack {
                     Text("Opening Cash")
-                    TextField("Amount", value: $cash, formatter: currencyFormatter)
+                    TextField("Amount", value: $cash, formatter: currencyFmt)
                         .frame(width: 100)
                 }
             }
@@ -222,6 +224,8 @@ struct EndShiftView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var cash = 0.0
 
+    private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
+
     var body: some View {
         Form {
             if let active = storage.activeShift {
@@ -230,15 +234,15 @@ struct EndShiftView: View {
             }
             HStack {
                 Text("Closing Cash")
-                TextField("Amount", value: $cash, formatter: currencyFormatter)
+                TextField("Amount", value: $cash, formatter: currencyFmt)
                     .frame(width: 100)
             }
         }
         .padding()
         .onAppear {
             let activeID = storage.activeShift?.id
-            let totalSales = storage.transactions.filter { $0.shiftID == activeID }.reduce(0) { $0 + $1.amount }
-            cash = (storage.activeShift?.openingCash ?? 0) + totalSales
+            let cashSales = storage.transactions.filter { $0.shiftID == activeID && $0.paymentMethod == "Cash" }.reduce(0) { $0 + $1.amount }
+            cash = (storage.activeShift?.openingCash ?? 0) + cashSales
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

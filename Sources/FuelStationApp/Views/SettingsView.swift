@@ -46,6 +46,7 @@ struct SettingsView: View {
                     get: { storage.settings.phone },
                     set: { var s = storage.settings; s.phone = $0; storage.updateSettings(s) }
                 ))
+                .textFieldStyle(.roundedBorder)
             }
 
             Section("Financial Settings") {

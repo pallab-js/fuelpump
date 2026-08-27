@@ -19,6 +19,8 @@ public final class StorageManager {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let stack = CoreDataStack.shared
+    private var pendingSaveTasks: [String: Task<Void, Never>] = [:]
+    private let saveDebounceDuration: UInt64 = 400_000_000 // 400ms
 
     public init() {
         loadAll()
@@ -46,8 +48,9 @@ public final class StorageManager {
     }
 
     public func saveAll() {
-        // Transactions and LubeSales are saved individually in their add/update methods
-        // but we save others here
+        pendingSaveTasks.values.forEach { $0.cancel() }
+        pendingSaveTasks.removeAll()
+        
         saveBlob(lubeProducts, "lubeProducts")
         saveBlob(fuelTanks, "fuelTanks")
         saveBlob(pumps, "pumps")
@@ -56,6 +59,15 @@ public final class StorageManager {
         saveBlob(deliveries, "deliveries")
         saveBlob(expenses, "expenses")
         saveBlob(settings, "settings")
+    }
+
+    private func debouncedSave(_ value: some Encodable, _ key: String) {
+        pendingSaveTasks[key]?.cancel()
+        pendingSaveTasks[key] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: self?.saveDebounceDuration ?? 400_000_000)
+            guard !Task.isCancelled else { return }
+            self?.saveBlob(value, key)
+        }
     }
 
     // MARK: - CoreData Helpers
@@ -99,13 +111,14 @@ public final class StorageManager {
 
     private func loadTransactions() {
         let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
+        var result: [FuelTransaction] = []
+        backgroundContext.performAndWait {
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
             
             do {
-                let results = try backgroundContext.fetch(request)
-                let txs = results.compactMap { obj in
+                let fetched = try backgroundContext.fetch(request)
+                result = fetched.compactMap { obj in
                     FuelTransaction(
                         id: obj.value(forKey: "id") as? UUID ?? UUID(),
                         date: obj.value(forKey: "date") as? Date ?? .now,
@@ -120,24 +133,23 @@ public final class StorageManager {
                         attendantName: obj.value(forKey: "attendantName") as? String
                     )
                 }
-                Task { @MainActor in
-                    self.transactions = txs
-                }
             } catch {
                 logger.error("Failed to load transactions: \(error.localizedDescription)")
             }
         }
+        self.transactions = result
     }
 
     private func loadLubeSales() {
         let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
+        var result: [LubeSale] = []
+        backgroundContext.performAndWait {
             let request = NSFetchRequest<NSManagedObject>(entityName: "LubeSaleEntity")
             request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
             
             do {
-                let results = try backgroundContext.fetch(request)
-                let sales = results.compactMap { obj in
+                let fetched = try backgroundContext.fetch(request)
+                result = fetched.compactMap { obj in
                     LubeSale(
                         id: obj.value(forKey: "id") as? UUID ?? UUID(),
                         date: obj.value(forKey: "date") as? Date ?? .now,
@@ -148,13 +160,11 @@ public final class StorageManager {
                         attendantName: obj.value(forKey: "attendantName") as? String
                     )
                 }
-                Task { @MainActor in
-                    self.lubeSales = sales
-                }
             } catch {
                 logger.error("Failed to load lube sales: \(error.localizedDescription)")
             }
         }
+        self.lubeSales = result
     }
 
     // MARK: - Backup
@@ -252,7 +262,7 @@ public final class StorageManager {
     public func updatePump(_ pump: Pump) {
         guard let idx = pumps.firstIndex(where: { $0.id == pump.id }) else { return }
         pumps[idx] = pump
-        saveBlob(pumps, "pumps")
+        debouncedSave(pumps, "pumps")
     }
 
     public func deletePump(_ id: UUID) {
@@ -270,7 +280,7 @@ public final class StorageManager {
     public func updateCustomer(_ customer: Customer) {
         guard let idx = customers.firstIndex(where: { $0.id == customer.id }) else { return }
         customers[idx] = customer
-        saveBlob(customers, "customers")
+        debouncedSave(customers, "customers")
     }
 
     public func deleteCustomer(_ id: UUID) {
@@ -307,7 +317,7 @@ public final class StorageManager {
     public func updateShift(_ shift: Shift) {
         guard let idx = shifts.firstIndex(where: { $0.id == shift.id }) else { return }
         shifts[idx] = shift
-        saveBlob(shifts, "shifts")
+        debouncedSave(shifts, "shifts")
     }
 
     public func deleteShift(_ id: UUID) {
@@ -325,6 +335,14 @@ public final class StorageManager {
         FuelStationCore.formatVolume(value, localeIdentifier: settings.currency == "INR" ? "en_IN" : "en_US")
     }
 
+    public func makeCurrencyFormatter() -> NumberFormatter {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = settings.currency
+        f.locale = Locale(identifier: settings.currency == "INR" ? "en_IN" : "en_US")
+        return f
+    }
+
     // MARK: - Lube Shop
 
     public func addLubeProduct(_ product: LubeProduct) {
@@ -335,7 +353,7 @@ public final class StorageManager {
     public func updateLubeProduct(_ product: LubeProduct) {
         guard let idx = lubeProducts.firstIndex(where: { $0.id == product.id }) else { return }
         lubeProducts[idx] = product
-        saveBlob(lubeProducts, "lubeProducts")
+        debouncedSave(lubeProducts, "lubeProducts")
     }
 
     public func deleteLubeProduct(_ id: UUID) {
@@ -359,6 +377,7 @@ public final class StorageManager {
         
         lubeSales.insert(sale, at: 0)
         try? saveLubeSaleToCoreData(sale)
+        saveBlob(lubeSales, "lubeSales")
     }
     
     private func saveLubeSaleToCoreData(_ sale: LubeSale) throws {
@@ -439,7 +458,9 @@ public final class StorageManager {
         }
 
         transactions.insert(txToSave, at: 0)
-        saveAll()
+        saveBlob(fuelTanks, "fuelTanks")
+        saveBlob(pumps, "pumps")
+        saveBlob(customers, "customers")
         try? saveTransactionToCoreData(txToSave)
     }
     
@@ -492,7 +513,7 @@ public final class StorageManager {
 
         transactions[idx] = tx
         saveTransactionToCoreDataManual(tx)
-        saveAll()
+        saveBlob(fuelTanks, "fuelTanks")
     }
     
     private func saveTransactionToCoreDataManual(_ tx: FuelTransaction) {
@@ -538,56 +559,65 @@ public final class StorageManager {
                 try? backgroundContext.save()
             }
         }
-        saveAll()
+        saveBlob(fuelTanks, "fuelTanks")
     }
 
     // MARK: - Deliveries
 
-    public func addDelivery(_ delivery: Delivery) {
+    public func addDelivery(_ delivery: Delivery) -> Double {
+        var excess: Double = 0
         if let tankIdx = fuelTanks.firstIndex(where: { $0.type == delivery.fuelType }) {
             var tank = fuelTanks[tankIdx]
-            tank.current = min(tank.capacity, tank.current + delivery.liters)
+            let newLevel = tank.current + delivery.liters
+            if newLevel > tank.capacity {
+                excess = newLevel - tank.capacity
+                tank.current = tank.capacity
+            } else {
+                tank.current = newLevel
+            }
             tank.lastUpdated = .now
             fuelTanks[tankIdx] = tank
         }
         deliveries.insert(delivery, at: 0)
-        saveAll()
+        saveBlob(fuelTanks, "fuelTanks")
+        saveBlob(deliveries, "deliveries")
+        return excess
     }
 
     public func updateDelivery(_ delivery: Delivery) {
         guard let idx = deliveries.firstIndex(where: { $0.id == delivery.id }) else { return }
         deliveries[idx] = delivery
-        saveAll()
+        saveBlob(deliveries, "deliveries")
     }
 
     public func deleteDelivery(_ id: UUID) {
         deliveries.removeAll { $0.id == id }
-        saveAll()
+        saveBlob(deliveries, "deliveries")
     }
 
     // MARK: - Expenses
 
     public func addExpense(_ expense: Expense) {
         expenses.insert(expense, at: 0)
-        saveAll()
+        saveBlob(expenses, "expenses")
     }
 
     public func updateExpense(_ expense: Expense) {
         guard let idx = expenses.firstIndex(where: { $0.id == expense.id }) else { return }
         expenses[idx] = expense
-        saveAll()
+        saveBlob(expenses, "expenses")
     }
 
     public func deleteExpense(_ id: UUID) {
         expenses.removeAll { $0.id == id }
-        saveAll()
+        saveBlob(expenses, "expenses")
     }
 
     // MARK: - Settings
 
     public func updateSettings(_ newSettings: StationSettings) {
         settings = newSettings
-        saveBlob(settings, "settings")
+        debouncedSave(settings, "settings")
     }
 
     public func price(for fuelType: String) -> Double {

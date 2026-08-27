@@ -8,6 +8,9 @@ struct CustomersView: View {
     @State private var showingAddCustomer = false
     @State private var selectedCustomer: Customer?
     @State private var searchText = ""
+    @State private var confirmAwardPoints = false
+    @State private var confirmRedeemPoints = false
+    @State private var confirmSettleDues = false
 
     var filteredCustomers: [Customer] {
         if searchText.isEmpty {
@@ -82,6 +85,15 @@ struct CustomersView: View {
         }
         .listStyle(.inset)
         .alternatingRowBackgrounds()
+        .overlay {
+            if filteredCustomers.isEmpty {
+                ContentUnavailableView(
+                    searchText.isEmpty ? "No Customers" : "No Results",
+                    systemImage: "person.slash",
+                    description: Text(searchText.isEmpty ? "Add your first customer to get started." : "No customers match your search.")
+                )
+            }
+        }
     }
 
     private func customerDetail(_ customer: Customer) -> some View {
@@ -107,19 +119,29 @@ struct CustomersView: View {
                 LabeledContent("Total Spent", value: formatCurrency(customer.totalSpent))
                 
                 Button("Award 50 Bonus Points") {
-                    var c = customer
-                    c.loyaltyPoints += 50
-                    storage.updateCustomer(c)
+                    confirmAwardPoints = true
+                }
+                .confirmationDialog("Award 50 bonus points to \(customer.name)?", isPresented: $confirmAwardPoints) {
+                    Button("Confirm") {
+                        var c = customer
+                        c.loyaltyPoints += 50
+                        storage.updateCustomer(c)
+                    }
+                    Button("Cancel", role: .cancel) {}
                 }
                 
                 Button("Redeem 100 Points for ₹300 Discount") {
-                    var c = customer
-                    if c.loyaltyPoints >= 100 {
+                    confirmRedeemPoints = true
+                }
+                .disabled(customer.loyaltyPoints < 100)
+                .confirmationDialog("Redeem 100 points from \(customer.name)?", isPresented: $confirmRedeemPoints) {
+                    Button("Confirm") {
+                        var c = customer
                         c.loyaltyPoints -= 100
                         storage.updateCustomer(c)
                     }
+                    Button("Cancel", role: .cancel) {}
                 }
-                .disabled(customer.loyaltyPoints < 100)
             }
 
             Section("Credit Account (Khata)") {
@@ -128,9 +150,15 @@ struct CustomersView: View {
                 
                 if customer.creditBalance > 0 {
                     Button("Record Payment (Settle Dues)") {
-                        var c = customer
-                        c.creditBalance = 0
-                        storage.updateCustomer(c)
+                        confirmSettleDues = true
+                    }
+                    .confirmationDialog("Settle all dues for \(customer.name)?", isPresented: $confirmSettleDues) {
+                        Button("Confirm") {
+                            var c = customer
+                            c.creditBalance = 0
+                            storage.updateCustomer(c)
+                        }
+                        Button("Cancel", role: .cancel) {}
                     }
                 }
             }

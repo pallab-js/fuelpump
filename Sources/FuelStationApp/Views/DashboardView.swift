@@ -38,7 +38,7 @@ struct DashboardView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button("FuelTransaction", systemImage: "plus.circle") { showingAddTx = true }
+                Button("Transaction", systemImage: "plus.circle") { showingAddTx = true }
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Delivery", systemImage: "shippingbox") { showingAddDelivery = true }
                     .keyboardShortcut("d", modifiers: .command)
@@ -61,21 +61,28 @@ struct DashboardView: View {
 
     private var kpiSection: some View {
         HStack(spacing: 16) {
-            kpiCard(title: "Today's Sales", value: formatCurrency(storage.todaySalesTotal), icon: "dollarsign.circle")
+            kpiCard(title: "Today's Sales", value: formatCurrency(storage.todaySalesTotal), icon: "dollarsign.circle", valueColor: .green)
             kpiCard(title: "Transactions", value: "\(storage.todayTransactionsCount)", icon: "list.bullet.clipboard")
             kpiCard(title: "Tanks", value: "\(storage.fuelTanks.count)", icon: "fuelpump")
-            kpiCard(title: "Low Alerts", value: "\(storage.lowTanks.count)", icon: "exclamationmark.triangle")
+            kpiCard(
+                title: "Low Alerts",
+                value: "\(storage.lowTanks.count)",
+                icon: storage.lowTanks.isEmpty ? "checkmark.circle" : "exclamationmark.triangle",
+                valueColor: storage.lowTanks.isEmpty ? .green : .orange
+            )
         }
     }
 
-    private func kpiCard(title: String, value: String, icon: String) -> some View {
+    private func kpiCard(title: String, value: String, icon: String, valueColor: Color = .primary) -> some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.title3)
+                .foregroundStyle(valueColor)
                 .accessibilityHidden(true)
             Text(value)
                 .font(.title2)
                 .fontWeight(.bold)
+                .foregroundStyle(valueColor)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -158,7 +165,7 @@ struct DashboardView: View {
                         Text(tx.fuelType)
                             .font(.caption)
                             .frame(width: 80, alignment: .leading)
-                        Text(formatVolume(tx.liters))
+                        Text("\(formatVolume(tx.liters)) L")
                             .font(.caption)
                             .frame(width: 60, alignment: .trailing)
                         Spacer()
@@ -198,7 +205,7 @@ struct DashboardView: View {
                 ForEach(perf) { p in
                     HStack {
                         Text(p.name).font(.caption).frame(width: 100, alignment: .leading)
-                        Text(formatVolume(p.fuelVolume)).font(.caption).frame(width: 80, alignment: .trailing)
+                        Text("\(formatVolume(p.fuelVolume)) L").font(.caption).frame(width: 80, alignment: .trailing)
                         Text(formatCurrency(p.fuelRevenue)).font(.caption).frame(width: 80, alignment: .trailing)
                         Text("\(p.lubeQuantity)").font(.caption).frame(width: 60, alignment: .trailing)
                         Spacer()
