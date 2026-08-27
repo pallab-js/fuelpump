@@ -13,13 +13,16 @@ concurrency:
 jobs:
   build:
     name: Build & Validate
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Swift version
-        run: swift --version
+      - name: Select Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          swift --version
 
       - name: Build (debug)
         run: swift build
