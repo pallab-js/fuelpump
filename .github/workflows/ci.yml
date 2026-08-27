@@ -18,11 +18,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Install Swift 6.3
         run: |
-          xcode-select -p
-          xcodebuild -version
-          swift --version
+          curl -s https://raw.githubusercontent.com/swiftlang/swiftly/main/install.sh | bash
+          ~/.swiftly/bin/swiftly install 6.3.3
+          echo "$HOME/.swiftly/bin" >> $GITHUB_PATH
+
+      - name: Swift version
+        run: swift --version
 
       - name: Build (debug)
         run: swift build
