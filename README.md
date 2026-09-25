@@ -54,6 +54,29 @@ FuelPump is a comprehensive, production-ready fuel station management applicatio
 4. **Initial Setup**:
    On the first launch, follow the Onboarding assistant to configure your station's currency, fuel types, and tanks.
 
+## Known Issues
+
+### French localization is not applied to most UI strings
+
+`FuelStationCore/Resources/{en,fr}.lproj/Localizable.strings` contain ~150 translated
+strings, but SwiftPM nests those resources in `FuelStationApp_FuelStationCore.bundle`.
+SwiftUI string literals such as `Text("…")`, `Section("…")`, `Button("…")` resolve
+against `Bundle.main`, which has no `.lproj`, so they always fall back to the English
+key. Only strings passed through `loc()` (`Sources/FuelStationCore/Utilities.swift`)
+or `Text(_, bundle: .module)` are actually localized — chart titles/empty states today.
+
+Fixing it properly means:
+
+1. Wrapping every literal string call site (~430 across `Sources/FuelStationApp/Views/`)
+   with `loc(...)` — safe, since a missing key falls back to the English key.
+2. Adding the keys missing from `fr`: `Dashboard Layout`, `INR (₹)`,
+   `Privacy & Security Notice`, `Station Details`.
+3. Verifying with a French-locale run: `LANG=fr_FR.UTF-8 swift run FuelStationApp`.
+
+Note: putting an `.lproj` in the app target does **not** help — SwiftPM also nests
+executable-target resources in `FuelStationApp_FuelStationApp.bundle`, so `Bundle.main`
+still never sees them.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
