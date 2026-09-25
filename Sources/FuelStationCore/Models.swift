@@ -162,15 +162,13 @@ public struct Customer: Identifiable, Codable, Equatable, Hashable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         
-        let encName = (try? EncryptionManager.shared.encrypt(name)) ?? name
-        try container.encode(encName, forKey: .name)
-        
-        let encPhone = (try? EncryptionManager.shared.encrypt(phone)) ?? phone
-        try container.encode(encPhone, forKey: .phone)
+        // Never fall back to writing plaintext PII: if encryption fails the
+        // whole write fails loudly instead of persisting raw customer data.
+        try container.encode(EncryptionManager.shared.encrypt(name), forKey: .name)
+        try container.encode(EncryptionManager.shared.encrypt(phone), forKey: .phone)
         
         if let email = email {
-            let encEmail = (try? EncryptionManager.shared.encrypt(email)) ?? email
-            try container.encode(encEmail, forKey: .email)
+            try container.encode(EncryptionManager.shared.encrypt(email), forKey: .email)
         }
         
         try container.encode(loyaltyPoints, forKey: .loyaltyPoints)
