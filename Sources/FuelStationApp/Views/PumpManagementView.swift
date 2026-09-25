@@ -6,17 +6,18 @@ import SwiftUI
 struct PumpManagementView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingAddPump = false
-    @State private var selectedPump: Pump?
+    @State private var selectedPumpID: Pump.ID?
     @State private var pumpToDelete: Pump?
 
     var body: some View {
         HSplitView {
             pumpList
                 .frame(minWidth: 250, idealWidth: 350)
-            if let selectedPump {
-                pumpDetail(selectedPump)
+            // Re-read from storage so edits and meter changes are never stale.
+            if let id = selectedPumpID, let pump = storage.pumps.first(where: { $0.id == id }) {
+                pumpDetail(pump)
                     .frame(minWidth: 250, idealWidth: 400)
-                    .id(selectedPump.id)
+                    .id(pump.id)
             } else {
                 Text("Select a pump")
                     .foregroundStyle(.secondary)
@@ -33,7 +34,7 @@ struct PumpManagementView: View {
     }
 
     private var pumpList: some View {
-        List(selection: $selectedPump) {
+        List(selection: $selectedPumpID) {
             ForEach(storage.pumps) { pump in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -46,12 +47,12 @@ struct PumpManagementView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
                         statusBadge(pump.status)
-                        Text("\(formatVolume(pump.meterReading)) L")
+                        Text("\(storage.formatVolume(pump.meterReading)) L")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
                 }
-                .tag(pump)
+                .tag(pump.id)
             }
             .onDelete { indexSet in
                 for idx in indexSet {
@@ -74,7 +75,7 @@ struct PumpManagementView: View {
             Button("Delete", role: .destructive) {
                 if let pump = pumpToDelete {
                     storage.deletePump(pump.id)
-                    if selectedPump?.id == pump.id { selectedPump = nil }
+                    if selectedPumpID == pump.id { selectedPumpID = nil }
                     pumpToDelete = nil
                 }
             }
@@ -124,7 +125,7 @@ struct PumpManagementView: View {
                 HStack {
                     Text("Total Volume Delivered")
                     Spacer()
-                    Text("\(formatVolume(pump.meterReading)) L")
+                    Text("\(storage.formatVolume(pump.meterReading)) L")
                         .font(.system(.body, design: .monospaced))
                         .fontWeight(.bold)
                 }
@@ -151,7 +152,7 @@ struct PumpManagementView: View {
                             Text(formatDate(tx.date))
                                 .font(.caption)
                             Spacer()
-                            Text("\(formatVolume(tx.liters)) L")
+                            Text("\(storage.formatVolume(tx.liters)) L")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                         }

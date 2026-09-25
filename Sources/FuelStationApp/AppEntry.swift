@@ -13,6 +13,9 @@ struct FuelStationApp: App {
                 .environment(storage)
                 .onAppear { storage.backupStore() }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    // Flush debounced/pending writes first (independent of the
+                    // auto-backup setting), then snapshot the store.
+                    storage.flush()
                     storage.backupStore()
                 }
         }

@@ -4,18 +4,24 @@ import SwiftUI
 struct LubeShopView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingAddProduct = false
-    @State private var selectedProduct: LubeProduct?
+    @State private var selectedProductID: LubeProduct.ID?
     @State private var showingSaleDialog = false
-    @State private var saleQuantity = 1
+
+    private var selectedProduct: LubeProduct? {
+        guard let id = selectedProductID else { return nil }
+        return storage.lubeProducts.first(where: { $0.id == id })
+    }
 
     var body: some View {
         HSplitView {
             productList
                 .frame(minWidth: 300, idealWidth: 400)
-            if let selectedProduct {
-                productDetail(selectedProduct)
+            // Read the product from storage on every render so edits (and stock
+            // changes from sales) are never shown from a stale value copy.
+            if let product = selectedProduct {
+                productDetail(product)
                     .frame(minWidth: 300, idealWidth: 500)
-                    .id(selectedProduct.id)
+                    .id(product.id)
             } else {
                 Text("Select a product")
                     .foregroundStyle(.secondary)
@@ -38,7 +44,7 @@ struct LubeShopView: View {
     }
 
     private var productList: some View {
-        List(selection: $selectedProduct) {
+        List(selection: $selectedProductID) {
             ForEach(storage.lubeProducts) { product in
                 HStack {
                     VStack(alignment: .leading) {
@@ -50,11 +56,11 @@ struct LubeShopView: View {
                         Text("\(product.stock) in stock")
                             .font(.caption)
                             .foregroundStyle(product.stock < 5 ? .red : .secondary)
-                        Text(formatCurrency(product.price))
+                        Text(storage.formatCurrency(product.price))
                             .font(.caption2).fontWeight(.semibold)
                     }
                 }
-                .tag(product)
+                .tag(product.id)
             }
             .onDelete { indices in
                 for idx in indices {
@@ -166,7 +172,8 @@ struct LubeSaleView: View {
     var body: some View {
         Form {
             Text("Selling \(product.name)").font(.headline)
-            Stepper("Quantity: \(quantity)", value: $quantity, in: 1...product.stock)
+            // Guard the range: a `1...0` range would trap if stock hit 0.
+            Stepper("Quantity: \(quantity)", value: $quantity, in: 1...max(product.stock, 1))
             
             if let activeShift = storage.activeShift, !activeShift.attendants.isEmpty {
                 Picker("Attendant", selection: $attendantName) {

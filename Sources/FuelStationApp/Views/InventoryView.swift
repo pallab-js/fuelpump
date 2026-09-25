@@ -7,15 +7,16 @@ struct InventoryView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingAddTank = false
     @State private var showingAddDelivery = false
-    @State private var selectedTank: FuelTank?
+    @State private var selectedTankID: FuelTank.ID?
     @State private var tankToDelete: FuelTank?
 
     var body: some View {
         HSplitView {
             tankList
                 .frame(minWidth: 250, idealWidth: 350)
-            if let selectedTank {
-                tankDetail(selectedTank)
+            // Re-read from storage so levels stay live after transactions.
+            if let id = selectedTankID, let tank = storage.fuelTanks.first(where: { $0.id == id }) {
+                tankDetail(tank)
                     .frame(minWidth: 250, idealWidth: 350)
             } else {
                 Text("Select a tank")
@@ -36,13 +37,13 @@ struct InventoryView: View {
     }
 
     private var tankList: some View {
-        List(selection: $selectedTank) {
+        List(selection: $selectedTankID) {
             ForEach(storage.fuelTanks) { tank in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(tank.type)
                             .fontWeight(.medium)
-                        Text("\(formatVolume(tank.current)) / \(formatVolume(tank.capacity)) L")
+                        Text("\(storage.formatVolume(tank.current)) / \(storage.formatVolume(tank.capacity)) L")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -60,7 +61,7 @@ struct InventoryView: View {
                         .font(.caption)
                         .frame(width: 36, alignment: .trailing)
                 }
-                .tag(tank)
+                .tag(tank.id)
             }
             .onDelete { indexSet in
                 for idx in indexSet {
@@ -83,7 +84,7 @@ struct InventoryView: View {
             Button("Delete", role: .destructive) {
                 if let tank = tankToDelete {
                     storage.deleteTank(tank.id)
-                    if selectedTank?.id == tank.id { selectedTank = nil }
+                    if selectedTankID == tank.id { selectedTankID = nil }
                     tankToDelete = nil
                 }
             }
@@ -98,8 +99,8 @@ struct InventoryView: View {
         Form {
             Section("Tank Info") {
                 LabeledContent("Type", value: tank.type)
-                LabeledContent("Capacity", value: "\(formatVolume(tank.capacity)) L")
-                LabeledContent("Current", value: "\(formatVolume(tank.current)) L")
+                LabeledContent("Capacity", value: "\(storage.formatVolume(tank.capacity)) L")
+                LabeledContent("Current", value: "\(storage.formatVolume(tank.current)) L")
                 LabeledContent("Fill", value: "\(Int(tank.fillRatio * 100))%")
                 LabeledContent("Last Updated", value: formatDate(tank.lastUpdated))
             }
@@ -109,7 +110,7 @@ struct InventoryView: View {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
-                        Text("Below low threshold (\(formatVolume(threshold)) L)")
+                        Text("Below low threshold (\(storage.formatVolume(threshold)) L)")
                             .foregroundStyle(.orange)
                     }
                     
@@ -120,7 +121,7 @@ struct InventoryView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                 } else {
-                    Text("Above threshold (\(formatVolume(threshold)) L)")
+                    Text("Above threshold (\(storage.formatVolume(threshold)) L)")
                         .foregroundStyle(.green)
                 }
             }
@@ -140,7 +141,7 @@ struct InventoryView: View {
                             Text(d.supplier)
                                 .font(.caption)
                             Spacer()
-                            Text("+\(formatVolume(d.liters)) L")
+                            Text("+\(storage.formatVolume(d.liters)) L")
                                 .font(.caption)
                                 .foregroundStyle(.green)
                         }
@@ -164,7 +165,7 @@ struct InventoryView: View {
         
         Please deliver the following:
         Product: \(tank.type)
-        Quantity: \(formatVolume(reorderAmount))
+        Quantity: \(storage.formatVolume(reorderAmount))
         
         Delivery required ASAP.
         Thank you.
@@ -199,6 +200,11 @@ struct AddTankView: View {
                 Text("\(Int(capacity))")
                     .frame(width: 60)
             }
+            if isDuplicateType(type) {
+                Text("A tank for \(type) already exists")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
         .padding()
         .onAppear {
@@ -210,14 +216,21 @@ struct AddTankView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add") {
-                    guard !type.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    storage.addTank(FuelTank(type: type, capacity: capacity))
+                    let trimmed = type.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty, !isDuplicateType(trimmed) else { return }
+                    storage.addTank(FuelTank(type: trimmed, capacity: capacity))
                     dismiss()
                 }
-                .disabled(type.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(type.trimmingCharacters(in: .whitespaces).isEmpty || isDuplicateType(type))
             }
         }
         .frame(minWidth: 400, idealWidth: 400)
+    }
+
+    // Sales, deliveries and reverts all address tanks by fuel type, so a second
+    // tank for the same type would silently never be used.
+    private func isDuplicateType(_ type: String) -> Bool {
+        storage.fuelTanks.contains { $0.type == type }
     }
 }
 
@@ -281,12 +294,17 @@ struct AddDeliveryView: View {
                         showValidationAlert = true
                         return
                     }
-                    let excess = storage.addDelivery(Delivery(supplier: supplier, fuelType: fuelType, liters: liters, cost: cost, invoiceRef: invoiceRef.isEmpty ? nil : invoiceRef))
-                    if excess > 0 {
-                        excessAmount = excess
-                        showExcessAlert = true
-                    } else {
-                        dismiss()
+                    do {
+                        let excess = try storage.addDelivery(Delivery(supplier: supplier, fuelType: fuelType, liters: liters, cost: cost, invoiceRef: invoiceRef.isEmpty ? nil : invoiceRef))
+                        if excess > 0 {
+                            excessAmount = excess
+                            showExcessAlert = true
+                        } else {
+                            dismiss()
+                        }
+                    } catch {
+                        validationMessage = error.localizedDescription
+                        showValidationAlert = true
                     }
                 }
             }
@@ -297,7 +315,9 @@ struct AddDeliveryView: View {
             Text(validationMessage)
         }
         .alert("Delivery Exceeds Capacity", isPresented: $showExcessAlert) {
-            Button("OK") {}
+            // The delivery was already recorded, so close the form: leaving it
+            // open invites a second (duplicate) submission.
+            Button("OK") { dismiss() }
         } message: {
             Text("This delivery exceeds the tank capacity by \(storage.formatVolume(excessAmount)). The excess fuel was not added to the tank.")
         }

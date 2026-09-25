@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingWipeConfirmation = false
     @State private var showingRestorePicker = false
+    @State private var pendingRestoreURL: URL?
     @State private var showingAddFuelTypeAlert = false
     @State private var newFuelTypeName = ""
     @State private var newFuelTypePrice = 1.50
@@ -163,7 +164,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Privacy & Security Notice", systemImage: "lock.shield")
                         .font(.headline)
-                    Text("FuelPump stores data locally in plain JSON format. Ensure your machine is secure and uses FileVault encryption for maximum protection of customer PII.")
+                    Text("FuelPump stores data locally on this Mac. Customer names, phone numbers, and email addresses are encrypted at rest with AES-256 (key held in the macOS Keychain); all other records are stored unencrypted. Enable FileVault for full-disk protection.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -244,6 +245,22 @@ struct SettingsView: View {
         .fileImporter(isPresented: $showingRestorePicker, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
+                // Never wipe current data before the user confirms.
+                pendingRestoreURL = url
+            case .failure:
+                setStatus(loc("Restore cancelled"))
+            }
+        }
+        .confirmationDialog(
+            "Restore Backup?",
+            isPresented: Binding(
+                get: { pendingRestoreURL != nil },
+                set: { if !$0 { pendingRestoreURL = nil } }
+            )
+        ) {
+            Button("Restore (Replaces All Data)", role: .destructive) {
+                guard let url = pendingRestoreURL else { return }
+                pendingRestoreURL = nil
                 do {
                     try storage.restore(from: url)
                     setStatus(loc("Backup restored successfully"))
@@ -251,9 +268,10 @@ struct SettingsView: View {
                     errorMessage = error.localizedDescription
                     showErrorAlert = true
                 }
-            case .failure:
-                setStatus(loc("Restore cancelled"))
             }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Restoring replaces every current record (tanks, transactions, customers, expenses) with the contents of the selected backup. This cannot be undone.")
         }
     }
 

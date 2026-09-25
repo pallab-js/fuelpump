@@ -45,19 +45,40 @@ struct DailyClosureView: View {
     }
 
     private var cashTotal: Double {
-        dayTransactions.filter { $0.paymentMethod == "Cash" }.reduce(0) { $0 + $1.amount }
+        total(forMethod: "Cash")
     }
 
-    private var cardTotal: Double {
-        dayTransactions.filter { $0.paymentMethod == "Card" }.reduce(0) { $0 + $1.amount }
+    /// Every payment method actually present in the day, in display order.
+    /// Building this dynamically keeps the rows summing to `totalRevenue`
+    /// (a hardcoded list drops methods such as UPI and Credit).
+    private var paymentTotals: [(method: String, total: Double)] {
+        let preferred = ["Cash", "UPI", "Card", "Credit", "Fuel Card", "Mobile"]
+        var totals: [String: Double] = [:]
+        for tx in dayTransactions {
+            totals[tx.paymentMethod, default: 0] += tx.amount
+        }
+        var rows: [(method: String, total: Double)] = preferred.compactMap { m in
+            guard let value = totals[m] else { return nil }
+            totals.removeValue(forKey: m)
+            return (m, value)
+        }
+        rows += totals.sorted { $0.value > $1.value }.map { ($0.key, $0.value) }
+        return rows
     }
 
-    private var mobileTotal: Double {
-        dayTransactions.filter { $0.paymentMethod == "Mobile" }.reduce(0) { $0 + $1.amount }
+    private func total(forMethod method: String) -> Double {
+        dayTransactions.filter { $0.paymentMethod == method }.reduce(0) { $0 + $1.amount }
     }
 
-    private var fuelCardTotal: Double {
-        dayTransactions.filter { $0.paymentMethod == "Fuel Card" }.reduce(0) { $0 + $1.amount }
+    private func paymentStyle(for method: String) -> (icon: String, color: Color) {
+        switch method {
+        case "Cash": return ("dollarsign.circle", .green)
+        case "UPI", "Mobile": return ("iphone", .orange)
+        case "Card": return ("creditcard", .blue)
+        case "Credit": return ("person.crop.circle.badge.questionmark", .red)
+        case "Fuel Card": return ("fuelpump", .purple)
+        default: return ("creditcard", .gray)
+        }
     }
 
     private var fuelTypeSales: [(fuel: String, liters: Double, amount: Double)] {
@@ -210,10 +231,11 @@ struct DailyClosureView: View {
                 Text("No transactions for this date")
                     .foregroundStyle(.secondary)
             } else {
-                paymentRow(method: "Cash", total: cashTotal, icon: "dollarsign.circle", color: .green)
-                paymentRow(method: "Card", total: cardTotal, icon: "creditcard", color: .blue)
-                paymentRow(method: "Mobile", total: mobileTotal, icon: "iphone", color: .orange)
-                paymentRow(method: "Fuel Card", total: fuelCardTotal, icon: "fuelpump", color: .purple)
+                ForEach(paymentTotals.indices, id: \.self) { index in
+                    let row = paymentTotals[index]
+                    let style = paymentStyle(for: row.method)
+                    paymentRow(method: row.method, total: row.total, icon: style.icon, color: style.color)
+                }
                 Divider()
                 HStack {
                     Text("Total")
@@ -454,8 +476,9 @@ private func exportCSV() {
     lines.append("Total Liters,\(totalLiters)")
     lines.append("")
     lines.append("Payment Breakdown")
-    for (method, total) in [("Cash", cashTotal), ("Card", cardTotal), ("Mobile", mobileTotal), ("Fuel Card", fuelCardTotal)] {
-        lines.append("\(method),\(total)")
+    lines.append("Method,Amount")
+    for row in paymentTotals {
+        lines.append("\(csvField(row.method)),\(row.total)")
     }
     lines.append("Total,\(totalRevenue)")
     lines.append("")
@@ -463,20 +486,20 @@ private func exportCSV() {
     lines.append("Type,Liters,Revenue,PricePerLiter")
     for item in fuelTypeSales {
         let ppl = item.liters > 0 ? item.amount / item.liters : 0
-        lines.append("\(item.fuel),\(item.liters),\(item.amount),\(ppl)")
+        lines.append("\(csvField(item.fuel)),\(item.liters),\(item.amount),\(ppl)")
     }
     lines.append("")
     lines.append("Expenses")
     lines.append("Category,Amount")
     for expense in dayExpenses {
-        lines.append("\(expense.category),\(expense.amount)")
+        lines.append("\(csvField(expense.category)),\(expense.amount)")
     }
     lines.append("Total Expenses,\(totalExpensesAmount)")
     lines.append("")
     lines.append("Deliveries")
     lines.append("Supplier,Fuel Type,Liters,Cost")
     for delivery in dayDeliveries {
-        lines.append("\(delivery.supplier),\(delivery.fuelType),\(delivery.liters),\(delivery.cost)")
+        lines.append("\(csvField(delivery.supplier)),\(csvField(delivery.fuelType)),\(delivery.liters),\(delivery.cost)")
     }
     lines.append("")
     lines.append("Cash Reconciliation")

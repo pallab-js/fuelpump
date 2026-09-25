@@ -92,9 +92,12 @@ struct OnboardingView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
+                        guard !tankType.isEmpty,
+                              !storage.fuelTanks.contains(where: { $0.type == tankType }) else { return }
                         storage.addTank(FuelTank(type: tankType, capacity: tankCapacity, current: tankCurrent))
                         showingAddTank = false
                     }
+                    .disabled(tankType.isEmpty || storage.fuelTanks.contains(where: { $0.type == tankType }))
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showingAddTank = false }
@@ -169,6 +172,9 @@ struct OnboardingView: View {
                 }
                 .onDelete { indices in
                     var s = storage.settings
+                    for idx in indices {
+                        s.fuelPrices.removeValue(forKey: s.fuelTypes[idx])
+                    }
                     s.fuelTypes.remove(atOffsets: indices)
                     storage.updateSettings(s)
                 }

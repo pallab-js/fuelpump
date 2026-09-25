@@ -66,18 +66,17 @@ extension StorageManager {
 
     func dailySales(from: Date, to: Date) -> [DailySales] {
         let cal = Calendar.current
-        let fromDay = cal.startOfDay(for: from)
-        let toDay = cal.startOfDay(for: to)
-        let days = cal.dateComponents([.day], from: fromDay, to: toDay).day ?? 0
+        let range = dayRange(from: from, to: to)
         var byDay: [Date: Double] = [:]
 
-        for i in 0...max(days, 0) {
-            if let date = cal.date(byAdding: .day, value: i, to: fromDay) {
-                byDay[date] = 0
-            }
+        var cursor = range.start
+        while cursor < range.endExclusive {
+            byDay[cursor] = 0
+            guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
         }
 
-        for tx in transactions where tx.date >= fromDay && tx.date <= toDay + 86399 {
+        for tx in transactions where tx.date >= range.start && tx.date < range.endExclusive {
             let txDay = cal.startOfDay(for: tx.date)
             if byDay.keys.contains(txDay) {
                 byDay[txDay, default: 0] += tx.amount
@@ -88,7 +87,8 @@ extension StorageManager {
     }
 
     func salesByMethod(from: Date, to: Date) -> [SalesByMethod] {
-        let rangeTx = transactions.filter { $0.date >= from && $0.date <= to }
+        let range = dayRange(from: from, to: to)
+        let rangeTx = transactions.filter { $0.date >= range.start && $0.date < range.endExclusive }
         var byMethod: [String: Double] = [:]
         for tx in rangeTx {
             byMethod[tx.paymentMethod, default: 0] += tx.amount
@@ -98,7 +98,8 @@ extension StorageManager {
     }
 
     func salesByFuelType(from: Date, to: Date) -> [SalesByFuelType] {
-        let rangeTx = transactions.filter { $0.date >= from && $0.date <= to }
+        let range = dayRange(from: from, to: to)
+        let rangeTx = transactions.filter { $0.date >= range.start && $0.date < range.endExclusive }
         var byFuel: [String: (total: Double, liters: Double)] = [:]
         for tx in rangeTx {
             byFuel[tx.fuelType, default: (0, 0)].total += tx.amount
@@ -169,9 +170,9 @@ struct SalesTrendChart: View {
     let data: [DailySales]
 
     var body: some View {
-        chartCard(title: "Sales Trend") {
+        chartCard(title: loc("Sales Trend")) {
             if data.isEmpty || data.allSatisfy({ $0.total == 0 }) {
-                ContentUnavailableView("No sales data", systemImage: "chart.line.downtrend.xyaxis", description: Text("Transactions will appear here"))
+                ContentUnavailableView(loc("No sales data"), systemImage: "chart.line.downtrend.xyaxis", description: Text(loc("Transactions will appear here")))
             } else {
                 Chart(data) { item in
                     LineMark(
@@ -203,14 +204,15 @@ struct SalesTrendChart: View {
 }
 
 struct PaymentBreakdownChart: View {
+    @Environment(StorageManager.self) private var storage
     let data: [SalesByMethod]
 
     private var total: Double { data.reduce(0) { $0 + $1.total } }
 
     var body: some View {
-        chartCard(title: "Payment Breakdown") {
+        chartCard(title: loc("Payment Breakdown")) {
             if data.isEmpty || total == 0 {
-                ContentUnavailableView("No payments today", systemImage: "creditcard", description: Text("Today's transactions will appear here"))
+                ContentUnavailableView(loc("No payment data"), systemImage: "creditcard", description: Text(loc("Transactions will appear here")))
             } else {
                 Chart(data) { item in
                     SectorMark(
@@ -227,14 +229,14 @@ struct PaymentBreakdownChart: View {
                         }
                     }
                     .accessibilityLabel("Payment method: \(item.method)")
-                    .accessibilityValue(formatCurrency(item.total))
+                    .accessibilityValue(storage.formatCurrency(item.total))
                 }
                 .chartLegend(position: .bottom, spacing: 8)
                 .chartForegroundStyleScale(mapping: { method in
                     paymentMethodColor(method)
                 })
                 .accessibilityLabel("Payment breakdown chart")
-                .accessibilityValue("Distribution of payment methods today. Total sales: \(formatCurrency(total)).")
+                .accessibilityValue("Distribution of payment methods. Total sales: \(storage.formatCurrency(total)).")
             }
         }
     }
@@ -242,8 +244,9 @@ struct PaymentBreakdownChart: View {
     private func paymentMethodColor(_ method: String) -> Color {
         switch method {
         case "Cash": return .green
+        case "UPI", "Mobile": return .orange
         case "Card": return .blue
-        case "Mobile": return .orange
+        case "Credit": return .red
         case "Fuel Card": return .purple
         default: return .gray
         }
@@ -251,14 +254,13 @@ struct PaymentBreakdownChart: View {
 }
 
 struct FuelTypeBarChart: View {
+    @Environment(StorageManager.self) private var storage
     let data: [SalesByFuelType]
 
-    let fuelColors: [Color] = [.blue, .green, .orange, .purple, .red, .teal, .cyan, .indigo]
-
     var body: some View {
-        chartCard(title: "Fuel Type Sales Today") {
+        chartCard(title: loc("Fuel Type Sales")) {
             if data.isEmpty || data.allSatisfy({ $0.liters == 0 }) {
-                ContentUnavailableView("No fuel sales today", systemImage: "fuelpump", description: Text("Today's transactions will appear here"))
+                ContentUnavailableView(loc("No fuel sales"), systemImage: "fuelpump", description: Text(loc("Transactions will appear here")))
             } else {
                 Chart(data) { item in
                     BarMark(
@@ -267,30 +269,31 @@ struct FuelTypeBarChart: View {
                     )
                     .foregroundStyle(by: .value("Fuel Type", item.fuelType))
                     .annotation(position: .trailing, spacing: 4) {
-                        Text("\(formatVolume(item.liters)) L")
+                        Text("\(storage.formatVolume(item.liters)) L")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityLabel("Fuel type: \(item.fuelType)")
-                    .accessibilityValue("\(formatVolume(item.liters)) L sold")
+                    .accessibilityValue("\(storage.formatVolume(item.liters)) L sold")
                 }
                 .chartLegend(.hidden)
                 .chartXAxis { AxisMarks { AxisValueLabel() } }
                 .chartXScale(domain: .automatic(includesZero: true))
                 .accessibilityLabel("Fuel type sales bar chart")
-                .accessibilityValue("Showing sales volume for each fuel type today.")
+                .accessibilityValue("Showing sales volume for each fuel type in the selected period.")
             }
         }
     }
 }
 
 struct TankLevelChart: View {
+    @Environment(StorageManager.self) private var storage
     let tanks: [FuelTank]
 
     var body: some View {
-        chartCard(title: "Tank Levels") {
+        chartCard(title: loc("Tank Levels")) {
             if tanks.isEmpty {
-                ContentUnavailableView("No tanks configured", systemImage: "fuelpump", description: Text("Add tanks in Inventory"))
+                ContentUnavailableView(loc("No tanks configured"), systemImage: "fuelpump", description: Text(loc("Add tanks in Inventory")))
             } else {
                 Chart(tanks) { tank in
                     BarMark(
@@ -327,12 +330,13 @@ struct TankLevelChart: View {
 }
 
 struct WeeklyComparisonChart: View {
+    @Environment(StorageManager.self) private var storage
     let data: [WeeklyComparisonItem]
 
     var body: some View {
-        chartCard(title: "Weekly Comparison") {
+        chartCard(title: loc("Weekly Comparison")) {
             if data.isEmpty || data.allSatisfy({ $0.amount == 0 }) {
-                ContentUnavailableView("No data", systemImage: "calendar", description: Text("Compare this week vs last week"))
+                ContentUnavailableView(loc("No data"), systemImage: "calendar", description: Text(loc("Compare this week vs last week")))
             } else {
                 Chart(data) { item in
                     BarMark(
@@ -342,7 +346,7 @@ struct WeeklyComparisonChart: View {
                     .foregroundStyle(by: .value("Week", item.week))
                     .position(by: .value("Week", item.week))
                     .accessibilityLabel("\(item.day), \(item.week)")
-                    .accessibilityValue(formatCurrency(item.amount))
+                    .accessibilityValue(storage.formatCurrency(item.amount))
                 }
                 .chartForegroundStyleScale([
                     "This Week": .blue,

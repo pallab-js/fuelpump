@@ -17,6 +17,7 @@ struct FinancesView: View {
     ]
     @State private var showExportError = false
     @State private var exportErrorMessage = ""
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         HSplitView {
@@ -45,10 +46,7 @@ struct FinancesView: View {
                 Button("Add Expense", systemImage: "plus") { showingAddExpense = true }
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Delete", systemImage: "trash") {
-                    if let id = selectedExpenseID {
-                        storage.deleteExpense(id)
-                        selectedExpenseID = nil
-                    }
+                    showingDeleteConfirmation = true
                 }
                 .disabled(selectedExpenseID == nil)
                 Button("Export", systemImage: "square.and.arrow.up") { showingExportOptions = true }
@@ -68,6 +66,17 @@ struct FinancesView: View {
         } message: {
             Text(exportErrorMessage)
         }
+        .alert("Delete Expense?", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if let id = selectedExpenseID {
+                    storage.deleteExpense(id)
+                    selectedExpenseID = nil
+                }
+            }
+        } message: {
+            Text("This expense will be permanently removed from reports and totals.")
+        }
     }
 
     private var profitLossSection: some View {
@@ -75,10 +84,10 @@ struct FinancesView: View {
             Text("Profit & Loss Summary")
                 .font(.headline)
             HStack(spacing: 16) {
-                plCard(title: "Revenue", value: formatCurrency(storage.totalRevenue), color: .green)
-                plCard(title: "Expenses", value: formatCurrency(storage.totalExpenses), color: .red)
-                plCard(title: "Deliveries Cost", value: formatCurrency(storage.totalDeliveriesCost), color: .orange)
-                plCard(title: "Gross Profit", value: formatCurrency(storage.grossProfit), color: storage.grossProfit >= 0 ? .green : .red)
+                plCard(title: "Revenue", value: storage.formatCurrency(storage.totalRevenue), color: .green)
+                plCard(title: "Expenses", value: storage.formatCurrency(storage.totalExpenses), color: .red)
+                plCard(title: "Deliveries Cost", value: storage.formatCurrency(storage.totalDeliveriesCost), color: .orange)
+                plCard(title: "Gross Profit", value: storage.formatCurrency(storage.grossProfit), color: storage.grossProfit >= 0 ? .green : .red)
             }
         }
         .padding()
@@ -122,7 +131,7 @@ struct FinancesView: View {
                 }
                 .width(100)
                 TableColumn("Amount", value: \.amount) { expense in
-                    Text(formatCurrency(expense.amount))
+                    Text(storage.formatCurrency(expense.amount))
                         .font(.caption)
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -168,9 +177,9 @@ struct FinancesView: View {
                         .width(100)
                     TableColumn("Fuel", value: \.fuelType) { Text($0.fuelType).font(.caption) }
                         .width(80)
-                    TableColumn("Liters", value: \.liters) { Text(formatVolume($0.liters)).font(.caption).frame(maxWidth: .infinity, alignment: .trailing) }
+                    TableColumn("Liters", value: \.liters) { Text(storage.formatVolume($0.liters)).font(.caption).frame(maxWidth: .infinity, alignment: .trailing) }
                         .width(72)
-                    TableColumn("Cost", value: \.cost) { Text(formatCurrency($0.cost)).font(.caption).frame(maxWidth: .infinity, alignment: .trailing) }
+                    TableColumn("Cost", value: \.cost) { Text(storage.formatCurrency($0.cost)).font(.caption).frame(maxWidth: .infinity, alignment: .trailing) }
                         .width(88)
                 }
                 .tableStyle(.bordered)
@@ -184,7 +193,7 @@ struct FinancesView: View {
             Section("Expense Details") {
                 LabeledContent("Date", value: formatDate(expense.date))
                 LabeledContent("Category", value: expense.category)
-                LabeledContent("Amount", value: formatCurrency(expense.amount))
+                LabeledContent("Amount", value: storage.formatCurrency(expense.amount))
                 if let note = expense.note, !note.isEmpty {
                     LabeledContent("Note", value: note)
                 }

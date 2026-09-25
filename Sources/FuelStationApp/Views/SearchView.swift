@@ -196,6 +196,7 @@ struct CustomerSearchRow: View {
 }
 
 struct TransactionSearchRow: View {
+    @Environment(StorageManager.self) private var storage
     let tx: FuelTransaction
     var body: some View {
         HStack {
@@ -205,14 +206,15 @@ struct TransactionSearchRow: View {
             }
             Spacer()
             VStack(alignment: .trailing) {
-                Text(formatCurrency(tx.amount)).fontWeight(.semibold)
-                Text("\(formatVolume(tx.liters)) L").font(.caption2).foregroundStyle(.secondary)
+                Text(storage.formatCurrency(tx.amount)).fontWeight(.semibold)
+                Text("\(storage.formatVolume(tx.liters)) L").font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
 }
 
 struct DeliverySearchRow: View {
+    @Environment(StorageManager.self) private var storage
     let delivery: Delivery
     var body: some View {
         HStack {
@@ -222,14 +224,15 @@ struct DeliverySearchRow: View {
             }
             Spacer()
             VStack(alignment: .trailing) {
-                Text(formatCurrency(delivery.cost)).fontWeight(.semibold)
-                Text("+\(formatVolume(delivery.liters)) L").font(.caption2).foregroundStyle(.green)
+                Text(storage.formatCurrency(delivery.cost)).fontWeight(.semibold)
+                Text("+\(storage.formatVolume(delivery.liters)) L").font(.caption2).foregroundStyle(.green)
             }
         }
     }
 }
 
 struct ExpenseSearchRow: View {
+    @Environment(StorageManager.self) private var storage
     let expense: Expense
     var body: some View {
         HStack {
@@ -238,7 +241,7 @@ struct ExpenseSearchRow: View {
                 Text(formatDateOnly(expense.date)).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(formatCurrency(expense.amount)).fontWeight(.semibold).foregroundStyle(.red)
+            Text(storage.formatCurrency(expense.amount)).fontWeight(.semibold).foregroundStyle(.red)
         }
     }
 }

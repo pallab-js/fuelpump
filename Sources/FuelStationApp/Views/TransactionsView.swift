@@ -112,13 +112,13 @@ struct TransactionsView: View {
             }
             .width(80)
             TableColumn("Liters", value: \.liters) { tx in
-                Text(formatVolume(tx.liters))
+                Text(storage.formatVolume(tx.liters))
                     .font(.caption)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .width(72)
             TableColumn("Amount", value: \.amount) { tx in
-                Text(formatCurrency(tx.amount))
+                Text(storage.formatCurrency(tx.amount))
                     .font(.caption)
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -169,9 +169,9 @@ struct TransactionsView: View {
             }
             
             Section("Totals") {
-                let dayTotal = filteredTransactions
-                    .filter { Calendar.current.isDateInToday($0.date) }
-                    .reduce(0) { $0 + $1.amount }
+                // "Today" must not silently become 0 just because the date
+                // filter excludes today.
+                let dayTotal = storage.todayTransactions.reduce(0) { $0 + $1.amount }
                 let periodTotal = filteredTransactions.reduce(0) { $0 + $1.amount }
                 LabeledContent("Today", value: storage.formatCurrency(dayTotal))
                 LabeledContent("Filtered Period", value: storage.formatCurrency(periodTotal))
@@ -194,16 +194,29 @@ struct AddTransactionView: View {
     @State private var attendantName: String? = nil
     @State private var showValidationAlert = false
     @State private var validationMessage = ""
-    @State private var isManualAmount = false
+    /// Only set when the user types in the Amount field, so programmatic
+    /// updates never accidentally count as a manual override.
+    @State private var amountIsManual = false
 
     private var currencyFmt: NumberFormatter { storage.makeCurrencyFormatter() }
 
     private var isValid: Bool {
-        liters > 0 && amount > 0 && !fuelType.isEmpty
+        liters > 0 && amount > 0 && !fuelType.isEmpty && pumpID > 0
     }
 
     private var pricePerLiter: Double {
         storage.price(for: fuelType)
+    }
+
+    private func calculatedAmount(for liters: Double, fuelType: String) -> Double {
+        liters * storage.price(for: fuelType)
+    }
+
+    private var amountBinding: Binding<Double> {
+        Binding(
+            get: { amount },
+            set: { amount = $0; amountIsManual = true }
+        )
     }
 
     var body: some View {
@@ -265,11 +278,8 @@ struct AddTransactionView: View {
                 }
                 HStack {
                     Text("Amount")
-                    TextField("Amount", value: $amount, formatter: currencyFmt)
+                    TextField("Amount", value: amountBinding, formatter: currencyFmt)
                         .frame(width: 100)
-                        .onChange(of: amount) { _, _ in
-                            isManualAmount = true
-                        }
                 }
                 if !fuelType.isEmpty {
                     Text("Calculated: \(storage.formatVolume(liters)) L × \(storage.formatCurrency(pricePerLiter)) = \(storage.formatCurrency(liters * pricePerLiter))")
@@ -292,7 +302,8 @@ struct AddTransactionView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Record") {
                     guard isValid else {
-                        if liters <= 0 { validationMessage = loc("Liters must be greater than zero") }
+                        if storage.pumps.isEmpty || pumpID <= 0 { validationMessage = loc("Add a pump before recording a transaction") }
+                        else if liters <= 0 { validationMessage = loc("Liters must be greater than zero") }
                         else if amount <= 0 { validationMessage = loc("Amount must be greater than zero") }
                         else { validationMessage = loc("Please fill in all required fields") }
                         showValidationAlert = true
@@ -326,18 +337,20 @@ struct AddTransactionView: View {
         .onAppear {
             if fuelType.isEmpty {
                 fuelType = storage.settings.fuelTypes.first ?? "Petrol"
-                amount = storage.calculatedAmount(liters: liters, fuelType: fuelType)
             }
+            // Fall back to an existing pump when the default (1) was deleted.
+            if !storage.pumps.contains(where: { $0.number == pumpID }) {
+                pumpID = storage.pumps.first?.number ?? 0
+            }
+            amount = calculatedAmount(for: liters, fuelType: fuelType)
         }
-        .onChange(of: fuelType) { _, newFuel in
-            isManualAmount = false
-            amount = storage.calculatedAmount(liters: liters, fuelType: newFuel)
+        .onChange(of: fuelType) { _, _ in
+            amountIsManual = false
+            amount = calculatedAmount(for: liters, fuelType: fuelType)
         }
         .onChange(of: liters) { _, newLiters in
-            guard !fuelType.isEmpty else { return }
-            if !isManualAmount {
-                amount = storage.calculatedAmount(liters: newLiters, fuelType: fuelType)
-            }
+            guard !fuelType.isEmpty, !amountIsManual else { return }
+            amount = calculatedAmount(for: newLiters, fuelType: fuelType)
         }
         .frame(minWidth: 400, idealWidth: 400)
     }

@@ -61,7 +61,7 @@ struct DashboardView: View {
 
     private var kpiSection: some View {
         HStack(spacing: 16) {
-            kpiCard(title: "Today's Sales", value: formatCurrency(storage.todaySalesTotal), icon: "dollarsign.circle", valueColor: .green)
+            kpiCard(title: "Today's Sales", value: storage.formatCurrency(storage.todaySalesTotal), icon: "dollarsign.circle", valueColor: .green)
             kpiCard(title: "Transactions", value: "\(storage.todayTransactionsCount)", icon: "list.bullet.clipboard")
             kpiCard(title: "Tanks", value: "\(storage.fuelTanks.count)", icon: "fuelpump")
             kpiCard(
@@ -138,7 +138,7 @@ struct DashboardView: View {
                     .font(.headline)
                     .foregroundStyle(.red)
                 ForEach(storage.lowTanks) { tank in
-                    Label("\(tank.type): \(formatVolume(tank.current)) L remaining", systemImage: "exclamationmark.triangle.fill")
+                    Label("\(tank.type): \(storage.formatVolume(tank.current)) L remaining", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
             }
@@ -165,11 +165,11 @@ struct DashboardView: View {
                         Text(tx.fuelType)
                             .font(.caption)
                             .frame(width: 80, alignment: .leading)
-                        Text("\(formatVolume(tx.liters)) L")
+                        Text("\(storage.formatVolume(tx.liters)) L")
                             .font(.caption)
                             .frame(width: 60, alignment: .trailing)
                         Spacer()
-                        Text(formatCurrency(tx.amount))
+                        Text(storage.formatCurrency(tx.amount))
                             .font(.caption)
                             .fontWeight(.semibold)
                     }
@@ -205,11 +205,11 @@ struct DashboardView: View {
                 ForEach(perf) { p in
                     HStack {
                         Text(p.name).font(.caption).frame(width: 100, alignment: .leading)
-                        Text("\(formatVolume(p.fuelVolume)) L").font(.caption).frame(width: 80, alignment: .trailing)
-                        Text(formatCurrency(p.fuelRevenue)).font(.caption).frame(width: 80, alignment: .trailing)
+                        Text("\(storage.formatVolume(p.fuelVolume)) L").font(.caption).frame(width: 80, alignment: .trailing)
+                        Text(storage.formatCurrency(p.fuelRevenue)).font(.caption).frame(width: 80, alignment: .trailing)
                         Text("\(p.lubeQuantity)").font(.caption).frame(width: 60, alignment: .trailing)
                         Spacer()
-                        Text(formatCurrency(p.fuelRevenue + p.lubeRevenue)).font(.caption).fontWeight(.semibold).frame(width: 80, alignment: .trailing)
+                        Text(storage.formatCurrency(p.fuelRevenue + p.lubeRevenue)).font(.caption).fontWeight(.semibold).frame(width: 80, alignment: .trailing)
                     }
                     if p.id != perf.last?.id { Divider() }
                 }

@@ -5,7 +5,7 @@ import SwiftUI
 
 struct ShiftsView: View {
     @Environment(StorageManager.self) private var storage
-    @State private var selectedShift: Shift?
+    @State private var selectedShiftID: Shift.ID?
     @State private var showingStartShift = false
     @State private var showingEndShift = false
 
@@ -13,10 +13,11 @@ struct ShiftsView: View {
         HSplitView {
             shiftList
                 .frame(minWidth: 300, idealWidth: 400)
-            if let selectedShift {
-                shiftDetail(selectedShift)
+            // Re-read from storage so ending a shift refreshes the detail pane.
+            if let id = selectedShiftID, let shift = storage.shifts.first(where: { $0.id == id }) {
+                shiftDetail(shift)
                     .frame(minWidth: 300, idealWidth: 500)
-                    .id(selectedShift.id)
+                    .id(shift.id)
             } else {
                 Text("Select a shift")
                     .foregroundStyle(.secondary)
@@ -43,7 +44,7 @@ struct ShiftsView: View {
     }
 
     private var shiftList: some View {
-        List(selection: $selectedShift) {
+        List(selection: $selectedShiftID) {
             Section("Current") {
                 if let active = storage.activeShift {
                     HStack {
@@ -66,7 +67,7 @@ struct ShiftsView: View {
                             .foregroundStyle(.green)
                             .clipShape(Capsule())
                     }
-                    .tag(active)
+                    .tag(active.id)
                 } else {
                     Text("No active shift")
                         .foregroundStyle(.secondary)
@@ -92,7 +93,7 @@ struct ShiftsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .tag(shift)
+                    .tag(shift.id)
                 }
                 .onDelete { indices in
                     let pastShifts = storage.shifts.filter { $0.status == .closed }.sorted { $0.startTime > $1.startTime }
@@ -119,10 +120,10 @@ struct ShiftsView: View {
             }
 
             Section("Cash Reconciliation") {
-                LabeledContent("Opening Cash", value: formatCurrency(shift.openingCash))
+                LabeledContent("Opening Cash", value: storage.formatCurrency(shift.openingCash))
                 if let closing = shift.closingCash {
-                    LabeledContent("Closing Cash", value: formatCurrency(closing))
-                    LabeledContent("Net Cash", value: formatCurrency(closing - shift.openingCash))
+                    LabeledContent("Closing Cash", value: storage.formatCurrency(closing))
+                    LabeledContent("Net Cash", value: storage.formatCurrency(closing - shift.openingCash))
                 }
             }
 
@@ -131,8 +132,8 @@ struct ShiftsView: View {
                 let total = txs.reduce(0) { $0 + $1.amount }
                 let liters = txs.reduce(0) { $0 + $1.liters }
                 
-                LabeledContent("Total Revenue", value: formatCurrency(total))
-                LabeledContent("Total Volume", value: "\(formatVolume(liters)) L")
+                LabeledContent("Total Revenue", value: storage.formatCurrency(total))
+                LabeledContent("Total Volume", value: "\(storage.formatVolume(liters)) L")
                 LabeledContent("Transaction Count", value: "\(txs.count)")
             }
 
@@ -145,7 +146,7 @@ struct ShiftsView: View {
                             Spacer()
                             Text(tx.fuelType)
                                 .font(.caption2)
-                            Text(formatCurrency(tx.amount))
+                            Text(storage.formatCurrency(tx.amount))
                                 .font(.caption)
                                 .fontWeight(.semibold)
                         }

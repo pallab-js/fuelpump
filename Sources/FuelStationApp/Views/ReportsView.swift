@@ -68,10 +68,10 @@ struct ReportsView: View {
             let sgst = totalTax / 2
             
             HStack(spacing: 16) {
-                plCard("Taxable Value", value: formatCurrency(taxableValue), color: .primary)
-                plCard("CGST", value: formatCurrency(cgst), color: .orange)
-                plCard("SGST", value: formatCurrency(sgst), color: .orange)
-                plCard("Total Tax", value: formatCurrency(totalTax), color: .red)
+                plCard("Taxable Value", value: storage.formatCurrency(taxableValue), color: .primary)
+                plCard("CGST", value: storage.formatCurrency(cgst), color: .orange)
+                plCard("SGST", value: storage.formatCurrency(sgst), color: .orange)
+                plCard("Total Tax", value: storage.formatCurrency(totalTax), color: .red)
             }
         }
         .padding()
@@ -119,14 +119,14 @@ struct ReportsView: View {
             Text("Profit & Loss Summary", bundle: fuelStationBundle)
                 .font(.headline)
             HStack(spacing: 16) {
-                plCard("Revenue", value: formatCurrency(revenue), color: .green)
-                plCard("Expenses", value: formatCurrency(totalExpenses), color: .red)
-                plCard("Deliveries Cost", value: formatCurrency(totalDeliveriesCost), color: .orange)
-                plCard("Gross Profit", value: formatCurrency(profit), color: profit >= 0 ? .green : .red)
+                plCard("Revenue", value: storage.formatCurrency(revenue), color: .green)
+                plCard("Expenses", value: storage.formatCurrency(totalExpenses), color: .red)
+                plCard("Deliveries Cost", value: storage.formatCurrency(totalDeliveriesCost), color: .orange)
+                plCard("Gross Profit", value: storage.formatCurrency(profit), color: profit >= 0 ? .green : .red)
             }
             HStack(spacing: 16) {
                 infoCard("Transactions", value: "\(txCount)")
-                infoCard("Avg / Tx", value: formatCurrency(avgPerTx))
+                infoCard("Avg / Tx", value: storage.formatCurrency(avgPerTx))
             }
         }
         .padding()
@@ -186,7 +186,7 @@ struct ReportsView: View {
                     }
                     .width(120)
                     TableColumn("Sales") { item in
-                        Text(formatCurrency(item.total))
+                        Text(storage.formatCurrency(item.total))
                             .font(.caption).fontWeight(.semibold)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
@@ -239,13 +239,13 @@ struct ReportsView: View {
         lines.append("Payment Breakdown")
         lines.append("Method,Amount")
         for item in storage.salesByMethod(from: dateFrom, to: dateTo) {
-            lines.append("\(item.method),\(item.total)")
+            lines.append("\(csvField(item.method)),\(item.total)")
         }
         lines.append("")
         lines.append("Fuel Type Breakdown")
         lines.append("Fuel Type,Liters,Revenue")
         for item in storage.salesByFuelType(from: dateFrom, to: dateTo) {
-            lines.append("\(item.fuelType),\(item.liters),\(item.total)")
+            lines.append("\(csvField(item.fuelType)),\(item.liters),\(item.total)")
         }
 
         let content = lines.joined(separator: "\n")

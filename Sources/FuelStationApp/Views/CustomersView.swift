@@ -6,7 +6,7 @@ import SwiftUI
 struct CustomersView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingAddCustomer = false
-    @State private var selectedCustomer: Customer?
+    @State private var selectedCustomerID: Customer.ID?
     @State private var searchText = ""
     @State private var confirmAwardPoints = false
     @State private var confirmRedeemPoints = false
@@ -27,10 +27,12 @@ struct CustomersView: View {
         HSplitView {
             customerList
                 .frame(minWidth: 300, idealWidth: 400)
-            if let selectedCustomer {
-                customerDetail(selectedCustomer)
+            // Always re-read the selected record from storage: caching the value
+            // copy would show stale data and revert edits made in the form.
+            if let id = selectedCustomerID, let customer = storage.customers.first(where: { $0.id == id }) {
+                customerDetail(customer)
                     .frame(minWidth: 300, idealWidth: 500)
-                    .id(selectedCustomer.id)
+                    .id(customer.id)
             } else {
                 Text("Select a customer")
                     .foregroundStyle(.secondary)
@@ -48,7 +50,7 @@ struct CustomersView: View {
     }
 
     private var customerList: some View {
-        List(selection: $selectedCustomer) {
+        List(selection: $selectedCustomerID) {
             ForEach(filteredCustomers) { customer in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -65,17 +67,17 @@ struct CustomersView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.blue)
                         if customer.creditBalance > 0 {
-                            Text("Due: \(formatCurrency(customer.creditBalance))")
+                            Text("Due: \(storage.formatCurrency(customer.creditBalance))")
                                 .font(.caption2)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.red)
                         }
-                        Text(formatCurrency(customer.totalSpent))
+                        Text(storage.formatCurrency(customer.totalSpent))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .tag(customer)
+                .tag(customer.id)
             }
             .onDelete { indexSet in
                 for idx in indexSet {
@@ -116,7 +118,7 @@ struct CustomersView: View {
 
             Section("Loyalty Program") {
                 LabeledContent("Loyalty Points", value: "\(customer.loyaltyPoints)")
-                LabeledContent("Total Spent", value: formatCurrency(customer.totalSpent))
+                LabeledContent("Total Spent", value: storage.formatCurrency(customer.totalSpent))
                 
                 Button("Award 50 Bonus Points") {
                     confirmAwardPoints = true
@@ -130,7 +132,7 @@ struct CustomersView: View {
                     Button("Cancel", role: .cancel) {}
                 }
                 
-                Button("Redeem 100 Points for ₹300 Discount") {
+                Button("Redeem 100 Points for \(storage.formatCurrency(300)) Discount") {
                     confirmRedeemPoints = true
                 }
                 .disabled(customer.loyaltyPoints < 100)
@@ -145,7 +147,7 @@ struct CustomersView: View {
             }
 
             Section("Credit Account (Khata)") {
-                LabeledContent("Outstanding Balance", value: formatCurrency(customer.creditBalance))
+                LabeledContent("Outstanding Balance", value: storage.formatCurrency(customer.creditBalance))
                     .foregroundStyle(customer.creditBalance > 0 ? .red : .primary)
                 
                 if customer.creditBalance > 0 {
@@ -184,10 +186,10 @@ struct CustomersView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing) {
-                                Text(formatCurrency(tx.amount))
+                                Text(storage.formatCurrency(tx.amount))
                                     .font(.caption)
                                     .fontWeight(.semibold)
-                                Text("\(formatVolume(tx.liters)) L")
+                                Text("\(storage.formatVolume(tx.liters)) L")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -218,10 +220,18 @@ struct AddCustomerView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add") {
-                    storage.addCustomer(Customer(name: name, phone: phone, email: email.isEmpty ? nil : email))
+                    let trimmedName = name.trimmingCharacters(in: .whitespaces)
+                    let trimmedPhone = phone.trimmingCharacters(in: .whitespaces)
+                    guard !trimmedName.isEmpty, !trimmedPhone.isEmpty else { return }
+                    let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+                    storage.addCustomer(Customer(
+                        name: trimmedName,
+                        phone: trimmedPhone,
+                        email: trimmedEmail.isEmpty ? nil : trimmedEmail
+                    ))
                     dismiss()
                 }
-                .disabled(name.isEmpty || phone.isEmpty)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || phone.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .frame(minWidth: 400, idealWidth: 400)
