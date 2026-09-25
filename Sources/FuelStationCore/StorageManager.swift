@@ -22,7 +22,12 @@ public final class StorageManager {
     private var pendingSaveTasks: [String: Task<Void, Never>] = [:]
     private let saveDebounceDuration: UInt64 = 400_000_000 // 400ms
 
+    // Single serialized context for every write so writes for the same key are
+    // applied in FIFO order instead of racing across independent contexts.
+    @ObservationIgnored private let ioContext: NSManagedObjectContext
+
     public init() {
+        ioContext = CoreDataStack.shared.newBackgroundContext()
         loadAll()
         if pumps.isEmpty {
             initializeDefaultPumps()
@@ -48,77 +53,113 @@ public final class StorageManager {
     }
 
     public func saveAll() {
+        cancelPendingSaves()
+
+        saveBlob(lubeProducts, "lubeProducts", synchronously: true)
+        saveBlob(fuelTanks, "fuelTanks", synchronously: true)
+        saveBlob(pumps, "pumps", synchronously: true)
+        saveBlob(customers, "customers", synchronously: true)
+        saveBlob(shifts, "shifts", synchronously: true)
+        saveBlob(deliveries, "deliveries", synchronously: true)
+        saveBlob(expenses, "expenses", synchronously: true)
+        saveBlob(settings, "settings", synchronously: true)
+    }
+
+    /// Cancels every debounced write and flushes all pending writes to disk.
+    /// Called before terminating the app so no pending change is lost.
+    public func flush() {
+        saveAll()
+        // Drain any write that was already queued asynchronously.
+        ioContext.performAndWait { }
+    }
+
+    private func cancelPendingSaves() {
         pendingSaveTasks.values.forEach { $0.cancel() }
         pendingSaveTasks.removeAll()
-        
-        saveBlob(lubeProducts, "lubeProducts")
-        saveBlob(fuelTanks, "fuelTanks")
-        saveBlob(pumps, "pumps")
-        saveBlob(customers, "customers")
-        saveBlob(shifts, "shifts")
-        saveBlob(deliveries, "deliveries")
-        saveBlob(expenses, "expenses")
-        saveBlob(settings, "settings")
     }
 
     private func debouncedSave(_ value: some Encodable, _ key: String) {
         pendingSaveTasks[key]?.cancel()
         pendingSaveTasks[key] = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: self?.saveDebounceDuration ?? 400_000_000)
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.saveDebounceDuration)
             guard !Task.isCancelled else { return }
-            self?.saveBlob(value, key)
+            self.saveBlob(value, key)
         }
     }
 
     // MARK: - CoreData Helpers
 
-    private func saveBlob<T: Encodable>(_ value: T, _ key: String) {
-        // We perform encoding and DB work on a background task
-        let dataToSave: Data? = try? encoder.encode(value)
-        let backgroundContext = stack.newBackgroundContext()
-        
-        backgroundContext.perform {
+    private func saveBlob<T: Encodable>(_ value: T, _ key: String, synchronously: Bool = false) {
+        // A stale debounced write for the same key must never overwrite this one.
+        pendingSaveTasks[key]?.cancel()
+        pendingSaveTasks.removeValue(forKey: key)
+
+        let dataToSave: Data
+        do {
+            dataToSave = try encoder.encode(value)
+        } catch {
+            // Never silently drop a write (or fall back to partial data).
+            logger.error("Failed to encode blob \(key): \(error.localizedDescription)")
+            return
+        }
+
+        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
             let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
             request.predicate = NSPredicate(format: "key == %@", key)
-            
+
             do {
-                let results = try backgroundContext.fetch(request)
-                let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: backgroundContext)
+                let results = try ioContext.fetch(request)
+                let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: ioContext)
                 object.setValue(key, forKey: "key")
                 object.setValue(dataToSave, forKey: "data")
-                try backgroundContext.save()
+                try ioContext.save()
             } catch {
                 logger.error("Failed to save blob \(key): \(error.localizedDescription)")
             }
         }
+
+        if synchronously {
+            ioContext.performAndWait(write)
+        } else {
+            ioContext.perform(write)
+        }
     }
 
     private func loadBlob<T: Decodable>(_ key: String) -> T? {
-        let context = stack.viewContext
-        let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
-        request.predicate = NSPredicate(format: "key == %@", key)
-        
-        do {
-            let results = try context.fetch(request)
-            if let data = results.first?.value(forKey: "data") as? Data {
-                return try decoder.decode(T.self, from: data)
+        // Read through the same serialized context that performs the writes so
+        // we always observe the latest committed value.
+        let context = ioContext
+        let stored: Data? = context.performAndWait {
+            let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
+            request.predicate = NSPredicate(format: "key == %@", key)
+
+            do {
+                return try context.fetch(request).first?.value(forKey: "data") as? Data
+            } catch {
+                logger.error("Failed to load blob \(key): \(error.localizedDescription)")
+                return nil
             }
-        } catch {
-            logger.error("Failed to load blob \(key): \(error.localizedDescription)")
         }
-        return nil
+        guard let stored else { return nil }
+
+        do {
+            return try decoder.decode(T.self, from: stored)
+        } catch {
+            logger.error("Failed to decode blob \(key): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func loadTransactions() {
-        let backgroundContext = stack.newBackgroundContext()
-        var result: [FuelTransaction] = []
-        backgroundContext.performAndWait {
+        let context = ioContext
+        let loaded: [FuelTransaction] = context.performAndWait {
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-            
+
             do {
-                let fetched = try backgroundContext.fetch(request)
-                result = fetched.compactMap { obj in
+                let fetched = try context.fetch(request)
+                return fetched.compactMap { obj in
                     FuelTransaction(
                         id: obj.value(forKey: "id") as? UUID ?? UUID(),
                         date: obj.value(forKey: "date") as? Date ?? .now,
@@ -135,21 +176,21 @@ public final class StorageManager {
                 }
             } catch {
                 logger.error("Failed to load transactions: \(error.localizedDescription)")
+                return []
             }
         }
-        self.transactions = result
+        self.transactions = loaded
     }
 
     private func loadLubeSales() {
-        let backgroundContext = stack.newBackgroundContext()
-        var result: [LubeSale] = []
-        backgroundContext.performAndWait {
+        let context = ioContext
+        let loaded: [LubeSale] = context.performAndWait {
             let request = NSFetchRequest<NSManagedObject>(entityName: "LubeSaleEntity")
             request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-            
+
             do {
-                let fetched = try backgroundContext.fetch(request)
-                result = fetched.compactMap { obj in
+                let fetched = try context.fetch(request)
+                return fetched.compactMap { obj in
                     LubeSale(
                         id: obj.value(forKey: "id") as? UUID ?? UUID(),
                         date: obj.value(forKey: "date") as? Date ?? .now,
@@ -162,9 +203,10 @@ public final class StorageManager {
                 }
             } catch {
                 logger.error("Failed to load lube sales: \(error.localizedDescription)")
+                return []
             }
         }
-        self.lubeSales = result
+        self.lubeSales = loaded
     }
 
     // MARK: - Backup
@@ -187,11 +229,14 @@ public final class StorageManager {
         )
         let data = try encoder.encode(snapshot)
         try data.write(to: backupURL, options: .atomic)
+        // Backups contain financial data (and encrypted PII): keep them owner-only.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: backupURL.path)
         logger.log("Backup created: \(backupURL.lastPathComponent)")
     }
 
     public func restore(from url: URL) throws {
         let data = try Data(contentsOf: url)
+        // Decode first: never wipe existing data if the backup is invalid.
         let snapshot = try decoder.decode(BackupSnapshot.self, from: data)
         
         try wipeAllData()
@@ -209,8 +254,8 @@ public final class StorageManager {
         
         // Save back to CoreData
         saveAll()
-        for tx in transactions { try? saveTransactionToCoreData(tx) }
-        for sale in lubeSales { try? saveLubeSaleToCoreData(sale) }
+        for tx in transactions { saveTransactionToCoreData(tx, synchronously: true) }
+        for sale in lubeSales { saveLubeSaleToCoreData(sale, synchronously: true) }
         
         logger.log("Backup restored from \(url.path)")
     }
@@ -223,14 +268,31 @@ public final class StorageManager {
     // MARK: - Data Wipe
 
     public func wipeAllData() throws {
+        // Stop any pending/queued write first: otherwise it would run after the
+        // wipe and resurrect the data we are about to delete.
+        cancelPendingSaves()
+        ioContext.performAndWait { }
+
         let context = stack.viewContext
         let entities = ["TransactionEntity", "LubeSaleEntity", "BlobEntity"]
+        var deletedIDs: [NSManagedObjectID] = []
         for name in entities {
             let request = NSFetchRequest<NSFetchRequestResult>(entityName: name)
             let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-            try context.execute(deleteRequest)
+            deleteRequest.resultType = .resultTypeObjectIDs
+            let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
+            if let ids = result?.result as? [NSManagedObjectID] {
+                deletedIDs.append(contentsOf: ids)
+            }
+        }
+        // Batch deletes bypass the contexts, so merge them back in or the
+        // registered objects stay stale in memory.
+        if !deletedIDs.isEmpty {
+            let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: deletedIDs]
+            NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context, ioContext])
         }
         stack.saveContext()
+        ioContext.performAndWait { }
         
         lubeProducts = []
         lubeSales = []
@@ -299,6 +361,12 @@ public final class StorageManager {
     }
 
     public func startShift(employeeName: String, attendants: [String] = [], openingCash: Double) {
+        // Only one shift can be active at a time, otherwise `activeShift` and
+        // end-of-shift reconciliation become ambiguous.
+        guard activeShift == nil else {
+            logger.error("Ignoring startShift: a shift is already active")
+            return
+        }
         let shift = Shift(employeeName: employeeName, attendants: attendants, openingCash: openingCash)
         shifts.append(shift)
         saveBlob(shifts, "shifts")
@@ -376,14 +444,12 @@ public final class StorageManager {
         saveBlob(lubeProducts, "lubeProducts")
         
         lubeSales.insert(sale, at: 0)
-        try? saveLubeSaleToCoreData(sale)
-        saveBlob(lubeSales, "lubeSales")
+        saveLubeSaleToCoreData(sale)
     }
     
-    private func saveLubeSaleToCoreData(_ sale: LubeSale) throws {
-        let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
-            let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: backgroundContext)
+    private func saveLubeSaleToCoreData(_ sale: LubeSale, synchronously: Bool = false) {
+        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
+            let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: ioContext)
             object.setValue(sale.id, forKey: "id")
             object.setValue(sale.date, forKey: "date")
             object.setValue(sale.productID, forKey: "productID")
@@ -391,7 +457,16 @@ public final class StorageManager {
             object.setValue(sale.totalAmount, forKey: "totalAmount")
             object.setValue(sale.customerID, forKey: "customerID")
             object.setValue(sale.attendantName, forKey: "attendantName")
-            try? backgroundContext.save()
+            do {
+                try ioContext.save()
+            } catch {
+                logger.error("Failed to save lube sale: \(error.localizedDescription)")
+            }
+        }
+        if synchronously {
+            ioContext.performAndWait(write)
+        } else {
+            ioContext.perform(write)
         }
     }
 
@@ -439,35 +514,39 @@ public final class StorageManager {
         tank.lastUpdated = .now
         fuelTanks[tankIdx] = tank
         
-        // Update pump meter reading
-        if let pumpIdx = pumps.firstIndex(where: { $0.number == txToSave.pumpID }) {
-            var pump = pumps[pumpIdx]
-            pump.meterReading += txToSave.liters
-            pumps[pumpIdx] = pump
-        }
-
-        // Update customer loyalty and credit
-        if let customerID = txToSave.customerID, let custIdx = customers.firstIndex(where: { $0.id == customerID }) {
-            var cust = customers[custIdx]
-            cust.totalSpent += txToSave.amount
-            cust.loyaltyPoints += Int(txToSave.liters / 10)
-            if txToSave.paymentMethod == "Credit" {
-                cust.creditBalance += txToSave.amount
-            }
-            customers[custIdx] = cust
-        }
+        // Update pump meter reading and customer loyalty/credit
+        applyTransactionEffects(txToSave, direction: 1)
 
         transactions.insert(txToSave, at: 0)
         saveBlob(fuelTanks, "fuelTanks")
         saveBlob(pumps, "pumps")
         saveBlob(customers, "customers")
-        try? saveTransactionToCoreData(txToSave)
+        saveTransactionToCoreData(txToSave)
+    }
+
+    /// Keeps derived state (pump odometer, customer spend/points/credit)
+    /// consistent with a transaction. Pass `direction: -1` to revert it.
+    private func applyTransactionEffects(_ tx: FuelTransaction, direction: Double) {
+        if let pumpIdx = pumps.firstIndex(where: { $0.number == tx.pumpID }) {
+            var pump = pumps[pumpIdx]
+            pump.meterReading += direction * tx.liters
+            pumps[pumpIdx] = pump
+        }
+
+        if let customerID = tx.customerID, let custIdx = customers.firstIndex(where: { $0.id == customerID }) {
+            var cust = customers[custIdx]
+            cust.totalSpent += direction * tx.amount
+            cust.loyaltyPoints += Int(direction * tx.liters / 10)
+            if tx.paymentMethod == "Credit" {
+                cust.creditBalance += direction * tx.amount
+            }
+            customers[custIdx] = cust
+        }
     }
     
-    private func saveTransactionToCoreData(_ tx: FuelTransaction) throws {
-        let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
-            let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: backgroundContext)
+    private func saveTransactionToCoreData(_ tx: FuelTransaction, synchronously: Bool = false) {
+        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
+            let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: ioContext)
             object.setValue(tx.id, forKey: "id")
             object.setValue(tx.date, forKey: "date")
             object.setValue(Int64(tx.pumpID), forKey: "pumpID")
@@ -479,7 +558,16 @@ public final class StorageManager {
             object.setValue(tx.customerID, forKey: "customerID")
             object.setValue(tx.shiftID, forKey: "shiftID")
             object.setValue(tx.attendantName, forKey: "attendantName")
-            try? backgroundContext.save()
+            do {
+                try ioContext.save()
+            } catch {
+                logger.error("Failed to save transaction: \(error.localizedDescription)")
+            }
+        }
+        if synchronously {
+            ioContext.performAndWait(write)
+        } else {
+            ioContext.perform(write)
         }
     }
 
@@ -511,17 +599,22 @@ public final class StorageManager {
             }
         }
 
+        // Revert the old values, then apply the new ones.
+        applyTransactionEffects(oldTx, direction: -1)
+        applyTransactionEffects(tx, direction: 1)
+
         transactions[idx] = tx
         saveTransactionToCoreDataManual(tx)
         saveBlob(fuelTanks, "fuelTanks")
+        saveBlob(pumps, "pumps")
+        saveBlob(customers, "customers")
     }
     
     private func saveTransactionToCoreDataManual(_ tx: FuelTransaction) {
-        let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
+        ioContext.perform { [ioContext = self.ioContext] in
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.predicate = NSPredicate(format: "id == %@", tx.id as CVarArg)
-            if let object = try? backgroundContext.fetch(request).first {
+            if let object = try? ioContext.fetch(request).first {
                 object.setValue(tx.date, forKey: "date")
                 object.setValue(Int64(tx.pumpID), forKey: "pumpID")
                 object.setValue(tx.fuelType, forKey: "fuelType")
@@ -532,7 +625,11 @@ public final class StorageManager {
                 object.setValue(tx.customerID, forKey: "customerID")
                 object.setValue(tx.shiftID, forKey: "shiftID")
                 object.setValue(tx.attendantName, forKey: "attendantName")
-                try? backgroundContext.save()
+                do {
+                    try ioContext.save()
+                } catch {
+                    logger.error("Failed to update transaction: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -547,37 +644,51 @@ public final class StorageManager {
                 tank.lastUpdated = .now
                 fuelTanks[tankIdx] = tank
             }
+            // Revert derived customer/pump state as well
+            applyTransactionEffects(tx, direction: -1)
             transactions.remove(at: idx)
         }
         
-        let backgroundContext = stack.newBackgroundContext()
-        backgroundContext.perform {
+        ioContext.perform { [ioContext = self.ioContext] in
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            if let object = try? backgroundContext.fetch(request).first {
-                backgroundContext.delete(object)
-                try? backgroundContext.save()
+            if let object = try? ioContext.fetch(request).first {
+                ioContext.delete(object)
+                do {
+                    try ioContext.save()
+                } catch {
+                    logger.error("Failed to delete transaction: \(error.localizedDescription)")
+                }
             }
         }
         saveBlob(fuelTanks, "fuelTanks")
+        saveBlob(pumps, "pumps")
+        saveBlob(customers, "customers")
     }
 
     // MARK: - Deliveries
 
-    public func addDelivery(_ delivery: Delivery) -> Double {
-        var excess: Double = 0
-        if let tankIdx = fuelTanks.firstIndex(where: { $0.type == delivery.fuelType }) {
-            var tank = fuelTanks[tankIdx]
-            let newLevel = tank.current + delivery.liters
-            if newLevel > tank.capacity {
-                excess = newLevel - tank.capacity
-                tank.current = tank.capacity
-            } else {
-                tank.current = newLevel
-            }
-            tank.lastUpdated = .now
-            fuelTanks[tankIdx] = tank
+    /// Records a delivery and tops up the matching tank.
+    /// - Throws: when no tank exists for `delivery.fuelType`; recording the
+    ///   delivery anyway would silently desynchronize inventory from reality.
+    /// - Returns: the number of liters that did not fit into the tank.
+    public func addDelivery(_ delivery: Delivery) throws -> Double {
+        guard let tankIdx = fuelTanks.firstIndex(where: { $0.type == delivery.fuelType }) else {
+            throw AppError.validation("No tank found for fuel type: \(delivery.fuelType)")
         }
+
+        var excess: Double = 0
+        var tank = fuelTanks[tankIdx]
+        let newLevel = tank.current + delivery.liters
+        if newLevel > tank.capacity {
+            excess = newLevel - tank.capacity
+            tank.current = tank.capacity
+        } else {
+            tank.current = newLevel
+        }
+        tank.lastUpdated = .now
+        fuelTanks[tankIdx] = tank
+
         deliveries.insert(delivery, at: 0)
         saveBlob(fuelTanks, "fuelTanks")
         saveBlob(deliveries, "deliveries")
@@ -676,15 +787,18 @@ public final class StorageManager {
     // MARK: - Date Range Queries
 
     public func transactions(from: Date, to: Date) -> [FuelTransaction] {
-        transactions.filter { $0.date >= from && $0.date <= to }
+        let range = dayRange(from: from, to: to)
+        return transactions.filter { $0.date >= range.start && $0.date < range.endExclusive }
     }
 
     public func expenses(from: Date, to: Date) -> [Expense] {
-        expenses.filter { $0.date >= from && $0.date <= to }
+        let range = dayRange(from: from, to: to)
+        return expenses.filter { $0.date >= range.start && $0.date < range.endExclusive }
     }
 
     public func deliveries(from: Date, to: Date) -> [Delivery] {
-        deliveries.filter { $0.date >= from && $0.date <= to }
+        let range = dayRange(from: from, to: to)
+        return deliveries.filter { $0.date >= range.start && $0.date < range.endExclusive }
     }
 
     public func totalRevenue(from: Date, to: Date) -> Double {

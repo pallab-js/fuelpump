@@ -73,6 +73,33 @@ public func formatDateOnly(_ date: Date) -> String {
     dateOnlyFormatter.string(from: date)
 }
 
+/// Normalizes a user selected `from`/`to` pair into a half-open range that
+/// covers the *entire* end day. DatePicker yields midnight for a date only
+/// selection, so a naive `date <= to` would silently drop everything recorded
+/// on the last day of the range.
+public func dayRange(from: Date, to: Date) -> (start: Date, endExclusive: Date) {
+    let cal = Calendar.current
+    let start = cal.startOfDay(for: from)
+    let endExclusive = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: to))
+        ?? cal.startOfDay(for: to).addingTimeInterval(86_400)
+    return (start, endExclusive)
+}
+
+/// Escapes a single CSV cell: quotes separators/newlines and defuses
+/// spreadsheet formula injection (`=`, `+`, `-`, `@`, tab, CR) for text values.
+public func csvField(_ raw: String) -> String {
+    var value = raw
+    let trimmed = value.trimmingCharacters(in: .whitespaces)
+    // Keep plain numbers untouched so negatives stay numeric.
+    if Double(trimmed) == nil, let first = value.first, "=+-@\t\r".contains(first) {
+        value = "'" + value
+    }
+    if value.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) {
+        value = "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+    return value
+}
+
 public func generateCSVRows<T: Encodable>(_ items: [T]) -> String {
     guard let first = items.first else { return "" }
     
@@ -86,7 +113,7 @@ public func generateCSVRows<T: Encodable>(_ items: [T]) -> String {
     }
     
     let headers = Array(json.keys)
-    var lines = [headers.joined(separator: ",")]
+    var lines = [headers.map(csvField).joined(separator: ",")]
     
     for item in items {
         guard let itemData = try? encoder.encode(item),
@@ -94,12 +121,8 @@ public func generateCSVRows<T: Encodable>(_ items: [T]) -> String {
             continue
         }
         let row = headers.map { key -> String in
-            let str = String(describing: itemJson[key] ?? "")
-            if str.contains(",") || str.contains("\"") || str.contains("\n") {
-                let escaped = str.replacingOccurrences(of: "\"", with: "\"\"")
-                return "\"\(escaped)\""
-            }
-            return str
+            let str = itemJson[key].map { String(describing: $0) } ?? ""
+            return csvField(str)
         }.joined(separator: ",")
         lines.append(row)
     }
