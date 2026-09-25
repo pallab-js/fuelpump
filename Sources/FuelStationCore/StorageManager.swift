@@ -104,25 +104,33 @@ public final class StorageManager {
             return
         }
 
-        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
-            let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
-            request.predicate = NSPredicate(format: "key == %@", key)
-
-            do {
-                let results = try ioContext.fetch(request)
-                let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: ioContext)
-                object.setValue(key, forKey: "key")
-                object.setValue(dataToSave, forKey: "data")
-                try ioContext.save()
-            } catch {
-                logger.error("Failed to save blob \(key): \(error.localizedDescription)")
+        // The closure literal is written inline at each `perform` call so its
+        // function type comes from the SDK: newer SDKs declare the block as
+        // `@Sendable` (fine here, the context is Sendable there), older ones do
+        // not, and an explicitly `@Sendable` local fails to compile on them.
+        if synchronously {
+            ioContext.performAndWait { [ioContext = self.ioContext] in
+                Self.writeBlob(dataToSave, key: key, to: ioContext)
+            }
+        } else {
+            ioContext.perform { [ioContext = self.ioContext] in
+                Self.writeBlob(dataToSave, key: key, to: ioContext)
             }
         }
+    }
 
-        if synchronously {
-            ioContext.performAndWait(write)
-        } else {
-            ioContext.perform(write)
+    private nonisolated static func writeBlob(_ data: Data, key: String, to context: NSManagedObjectContext) {
+        let request: NSFetchRequest<NSManagedObject> = NSFetchRequest(entityName: "BlobEntity")
+        request.predicate = NSPredicate(format: "key == %@", key)
+
+        do {
+            let results = try context.fetch(request)
+            let object = results.first ?? NSEntityDescription.insertNewObject(forEntityName: "BlobEntity", into: context)
+            object.setValue(key, forKey: "key")
+            object.setValue(data, forKey: "data")
+            try context.save()
+        } catch {
+            logger.error("Failed to save blob \(key): \(error.localizedDescription)")
         }
     }
 
@@ -448,25 +456,30 @@ public final class StorageManager {
     }
     
     private func saveLubeSaleToCoreData(_ sale: LubeSale, synchronously: Bool = false) {
-        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
-            let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: ioContext)
-            object.setValue(sale.id, forKey: "id")
-            object.setValue(sale.date, forKey: "date")
-            object.setValue(sale.productID, forKey: "productID")
-            object.setValue(Int64(sale.quantity), forKey: "quantity")
-            object.setValue(sale.totalAmount, forKey: "totalAmount")
-            object.setValue(sale.customerID, forKey: "customerID")
-            object.setValue(sale.attendantName, forKey: "attendantName")
-            do {
-                try ioContext.save()
-            } catch {
-                logger.error("Failed to save lube sale: \(error.localizedDescription)")
+        if synchronously {
+            ioContext.performAndWait { [ioContext = self.ioContext] in
+                Self.writeLubeSale(sale, to: ioContext)
+            }
+        } else {
+            ioContext.perform { [ioContext = self.ioContext] in
+                Self.writeLubeSale(sale, to: ioContext)
             }
         }
-        if synchronously {
-            ioContext.performAndWait(write)
-        } else {
-            ioContext.perform(write)
+    }
+
+    private nonisolated static func writeLubeSale(_ sale: LubeSale, to context: NSManagedObjectContext) {
+        let object = NSEntityDescription.insertNewObject(forEntityName: "LubeSaleEntity", into: context)
+        object.setValue(sale.id, forKey: "id")
+        object.setValue(sale.date, forKey: "date")
+        object.setValue(sale.productID, forKey: "productID")
+        object.setValue(Int64(sale.quantity), forKey: "quantity")
+        object.setValue(sale.totalAmount, forKey: "totalAmount")
+        object.setValue(sale.customerID, forKey: "customerID")
+        object.setValue(sale.attendantName, forKey: "attendantName")
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save lube sale: \(error.localizedDescription)")
         }
     }
 
@@ -545,29 +558,34 @@ public final class StorageManager {
     }
     
     private func saveTransactionToCoreData(_ tx: FuelTransaction, synchronously: Bool = false) {
-        let write: @Sendable () -> Void = { [ioContext = self.ioContext] in
-            let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: ioContext)
-            object.setValue(tx.id, forKey: "id")
-            object.setValue(tx.date, forKey: "date")
-            object.setValue(Int64(tx.pumpID), forKey: "pumpID")
-            object.setValue(tx.fuelType, forKey: "fuelType")
-            object.setValue(tx.liters, forKey: "liters")
-            object.setValue(tx.amount, forKey: "amount")
-            object.setValue(tx.paymentMethod, forKey: "paymentMethod")
-            object.setValue(tx.notes, forKey: "notes")
-            object.setValue(tx.customerID, forKey: "customerID")
-            object.setValue(tx.shiftID, forKey: "shiftID")
-            object.setValue(tx.attendantName, forKey: "attendantName")
-            do {
-                try ioContext.save()
-            } catch {
-                logger.error("Failed to save transaction: \(error.localizedDescription)")
+        if synchronously {
+            ioContext.performAndWait { [ioContext = self.ioContext] in
+                Self.writeTransaction(tx, to: ioContext)
+            }
+        } else {
+            ioContext.perform { [ioContext = self.ioContext] in
+                Self.writeTransaction(tx, to: ioContext)
             }
         }
-        if synchronously {
-            ioContext.performAndWait(write)
-        } else {
-            ioContext.perform(write)
+    }
+
+    private nonisolated static func writeTransaction(_ tx: FuelTransaction, to context: NSManagedObjectContext) {
+        let object = NSEntityDescription.insertNewObject(forEntityName: "TransactionEntity", into: context)
+        object.setValue(tx.id, forKey: "id")
+        object.setValue(tx.date, forKey: "date")
+        object.setValue(Int64(tx.pumpID), forKey: "pumpID")
+        object.setValue(tx.fuelType, forKey: "fuelType")
+        object.setValue(tx.liters, forKey: "liters")
+        object.setValue(tx.amount, forKey: "amount")
+        object.setValue(tx.paymentMethod, forKey: "paymentMethod")
+        object.setValue(tx.notes, forKey: "notes")
+        object.setValue(tx.customerID, forKey: "customerID")
+        object.setValue(tx.shiftID, forKey: "shiftID")
+        object.setValue(tx.attendantName, forKey: "attendantName")
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save transaction: \(error.localizedDescription)")
         }
     }
 
