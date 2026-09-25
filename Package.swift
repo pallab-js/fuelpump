@@ -22,5 +22,10 @@ let package = Package(
             dependencies: ["FuelStationCore"],
             path: "Sources/FuelStationApp"
         ),
+        .testTarget(
+            name: "FuelStationCoreTests",
+            dependencies: ["FuelStationCore"],
+            path: "Tests/FuelStationCoreTests"
+        ),
     ]
 )
