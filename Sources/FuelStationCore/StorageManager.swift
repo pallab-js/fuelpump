@@ -28,13 +28,10 @@ public final class StorageManager {
 
     public init() {
         ioContext = CoreDataStack.shared.newBackgroundContext()
-        print("[diag] storage ioContext ready")
         loadAll()
-        print("[diag] storage loadAll done")
         if pumps.isEmpty {
             initializeDefaultPumps()
         }
-        print("[diag] storage init done")
     }
 
     // MARK: - Persistence
@@ -109,17 +106,29 @@ public final class StorageManager {
             return
         }
 
-        // The closure literal is written inline at each `perform` call so its
-        // function type comes from the SDK: newer SDKs declare the block as
-        // `@Sendable` (fine here, the context is Sendable there), older ones do
-        // not, and an explicitly `@Sendable` local fails to compile on them.
+        Self.submitBlob(dataToSave, key: key, to: ioContext, synchronously: synchronously)
+    }
+
+    /// Builds the `perform` closure inside nonisolated code. A closure formed
+    /// in this `@MainActor` class inherits `@MainActor`, and older SDKs do not
+    /// declare the block as `@Sendable`, so CoreData would run an isolated
+    /// closure on its own queue and the executor assert traps. Writing the
+    /// literal here also keeps its type tied to the SDK's declaration: newer
+    /// SDKs say `@Sendable` (the context is Sendable there), older ones do not,
+    /// and an explicitly `@Sendable` local fails to compile on them.
+    private nonisolated static func submitBlob(
+        _ data: Data,
+        key: String,
+        to context: NSManagedObjectContext,
+        synchronously: Bool
+    ) {
         if synchronously {
-            ioContext.performAndWait { [ioContext = self.ioContext] in
-                Self.writeBlob(dataToSave, key: key, to: ioContext)
+            context.performAndWait {
+                Self.writeBlob(data, key: key, to: context)
             }
         } else {
-            ioContext.perform { [ioContext = self.ioContext] in
-                Self.writeBlob(dataToSave, key: key, to: ioContext)
+            context.perform {
+                Self.writeBlob(data, key: key, to: context)
             }
         }
     }
@@ -470,13 +479,23 @@ public final class StorageManager {
     }
     
     private func saveLubeSaleToCoreData(_ sale: LubeSale, synchronously: Bool = false) {
+        Self.submitLubeSale(sale, to: ioContext, synchronously: synchronously)
+    }
+
+    /// See ``submitBlob(_:key:to:synchronously:)`` for why this lives in a
+    /// nonisolated function.
+    private nonisolated static func submitLubeSale(
+        _ sale: LubeSale,
+        to context: NSManagedObjectContext,
+        synchronously: Bool
+    ) {
         if synchronously {
-            ioContext.performAndWait { [ioContext = self.ioContext] in
-                Self.writeLubeSale(sale, to: ioContext)
+            context.performAndWait {
+                Self.writeLubeSale(sale, to: context)
             }
         } else {
-            ioContext.perform { [ioContext = self.ioContext] in
-                Self.writeLubeSale(sale, to: ioContext)
+            context.perform {
+                Self.writeLubeSale(sale, to: context)
             }
         }
     }
@@ -572,13 +591,23 @@ public final class StorageManager {
     }
     
     private func saveTransactionToCoreData(_ tx: FuelTransaction, synchronously: Bool = false) {
+        Self.submitTransaction(tx, to: ioContext, synchronously: synchronously)
+    }
+
+    /// See ``submitBlob(_:key:to:synchronously:)`` for why this lives in a
+    /// nonisolated function.
+    private nonisolated static func submitTransaction(
+        _ tx: FuelTransaction,
+        to context: NSManagedObjectContext,
+        synchronously: Bool
+    ) {
         if synchronously {
-            ioContext.performAndWait { [ioContext = self.ioContext] in
-                Self.writeTransaction(tx, to: ioContext)
+            context.performAndWait {
+                Self.writeTransaction(tx, to: context)
             }
         } else {
-            ioContext.perform { [ioContext = self.ioContext] in
-                Self.writeTransaction(tx, to: ioContext)
+            context.perform {
+                Self.writeTransaction(tx, to: context)
             }
         }
     }
@@ -643,10 +672,19 @@ public final class StorageManager {
     }
     
     private func saveTransactionToCoreDataManual(_ tx: FuelTransaction) {
-        ioContext.perform { [ioContext = self.ioContext] in
+        Self.submitTransactionUpdate(tx, to: ioContext)
+    }
+
+    /// See ``submitBlob(_:key:to:synchronously:)`` for why this lives in a
+    /// nonisolated function.
+    private nonisolated static func submitTransactionUpdate(
+        _ tx: FuelTransaction,
+        to context: NSManagedObjectContext
+    ) {
+        context.perform {
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.predicate = NSPredicate(format: "id == %@", tx.id as CVarArg)
-            if let object = try? ioContext.fetch(request).first {
+            if let object = try? context.fetch(request).first {
                 object.setValue(tx.date, forKey: "date")
                 object.setValue(Int64(tx.pumpID), forKey: "pumpID")
                 object.setValue(tx.fuelType, forKey: "fuelType")
@@ -658,7 +696,7 @@ public final class StorageManager {
                 object.setValue(tx.shiftID, forKey: "shiftID")
                 object.setValue(tx.attendantName, forKey: "attendantName")
                 do {
-                    try ioContext.save()
+                    try context.save()
                 } catch {
                     logger.error("Failed to update transaction: \(error.localizedDescription)")
                 }
@@ -681,21 +719,30 @@ public final class StorageManager {
             transactions.remove(at: idx)
         }
         
-        ioContext.perform { [ioContext = self.ioContext] in
+        Self.submitTransactionDelete(id, from: ioContext)
+        saveBlob(fuelTanks, "fuelTanks")
+        saveBlob(pumps, "pumps")
+        saveBlob(customers, "customers")
+    }
+
+    /// See ``submitBlob(_:key:to:synchronously:)`` for why this lives in a
+    /// nonisolated function.
+    private nonisolated static func submitTransactionDelete(
+        _ id: UUID,
+        from context: NSManagedObjectContext
+    ) {
+        context.perform {
             let request = NSFetchRequest<NSManagedObject>(entityName: "TransactionEntity")
             request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            if let object = try? ioContext.fetch(request).first {
-                ioContext.delete(object)
+            if let object = try? context.fetch(request).first {
+                context.delete(object)
                 do {
-                    try ioContext.save()
+                    try context.save()
                 } catch {
                     logger.error("Failed to delete transaction: \(error.localizedDescription)")
                 }
             }
         }
-        saveBlob(fuelTanks, "fuelTanks")
-        saveBlob(pumps, "pumps")
-        saveBlob(customers, "customers")
     }
 
     // MARK: - Deliveries

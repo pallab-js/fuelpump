@@ -3,8 +3,9 @@ import Foundation
 import Testing
 @testable import FuelStationCore
 
-/// Temporary diagnostics: CI cannot attach lldb to the test process, so dump a
-/// symbolized backtrace from inside it when the trap fires.
+/// CI cannot attach lldb to the test process, so dump a symbolized backtrace
+/// from inside it when the process traps: a failing suite reports much more
+/// than "exited with unexpected signal".
 private func installTrapBacktrace() {
     signal(SIGTRAP) { _ in
         var frames = [UnsafeMutableRawPointer?](repeating: nil, count: 64)
