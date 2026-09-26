@@ -90,7 +90,9 @@ public final class StorageManager {
 
     // MARK: - CoreData Helpers
 
-    private func saveBlob<T: Encodable>(_ value: T, _ key: String, synchronously: Bool = false) {
+    /// `internal` (not `private`) so bulk writers such as the demo seeder,
+    /// which lives in another file, can persist in one place.
+    func saveBlob<T: Encodable>(_ value: T, _ key: String, synchronously: Bool = false) {
         // A stale debounced write for the same key must never overwrite this one.
         pendingSaveTasks[key]?.cancel()
         pendingSaveTasks.removeValue(forKey: key)
@@ -283,21 +285,30 @@ public final class StorageManager {
 
         let context = stack.viewContext
         let entities = ["TransactionEntity", "LubeSaleEntity", "BlobEntity"]
-        var deletedIDs: [NSManagedObjectID] = []
-        for name in entities {
-            let request = NSFetchRequest<NSFetchRequestResult>(entityName: name)
-            let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
-            deleteRequest.resultType = .resultTypeObjectIDs
-            let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
-            if let ids = result?.result as? [NSManagedObjectID] {
-                deletedIDs.append(contentsOf: ids)
+        if stack.isInMemoryStore {
+            // In-memory stores raise an ObjC exception for batch requests, so
+            // delete their objects individually instead.
+            for name in entities {
+                let request = NSFetchRequest<NSManagedObject>(entityName: name)
+                try context.fetch(request).forEach(context.delete)
             }
-        }
-        // Batch deletes bypass the contexts, so merge them back in or the
-        // registered objects stay stale in memory.
-        if !deletedIDs.isEmpty {
-            let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: deletedIDs]
-            NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context, ioContext])
+        } else {
+            var deletedIDs: [NSManagedObjectID] = []
+            for name in entities {
+                let request = NSFetchRequest<NSFetchRequestResult>(entityName: name)
+                let deleteRequest = NSBatchDeleteRequest(fetchRequest: request)
+                deleteRequest.resultType = .resultTypeObjectIDs
+                let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
+                if let ids = result?.result as? [NSManagedObjectID] {
+                    deletedIDs.append(contentsOf: ids)
+                }
+            }
+            // Batch deletes bypass the contexts, so merge them back in or the
+            // registered objects stay stale in memory.
+            if !deletedIDs.isEmpty {
+                let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: deletedIDs]
+                NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context, ioContext])
+            }
         }
         stack.saveContext()
         ioContext.performAndWait { }

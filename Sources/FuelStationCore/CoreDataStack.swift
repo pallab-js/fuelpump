@@ -6,16 +6,26 @@ public final class CoreDataStack {
     public static let shared = CoreDataStack()
     
     public let container: NSPersistentContainer
-    
+    /// True when backed by an in-memory store (`FUELSTATION_IN_MEMORY_STORE=1`),
+    /// so tests can seed/wipe data without ever touching the real station file.
+    public let isInMemoryStore: Bool
+
     private init() {
         let model = CoreDataStack.createManagedObjectModel()
         container = NSPersistentContainer(name: "FuelStationModel", managedObjectModel: model)
-        
-        let storeURL = appDataDirectory().appendingPathComponent("FuelStation.sqlite")
-        let description = NSPersistentStoreDescription(url: storeURL)
-        description.shouldMigrateStoreAutomatically = true
-        description.shouldInferMappingModelAutomatically = true
-        container.persistentStoreDescriptions = [description]
+
+        isInMemoryStore = ProcessInfo.processInfo.environment["FUELSTATION_IN_MEMORY_STORE"] == "1"
+        if isInMemoryStore {
+            let description = NSPersistentStoreDescription()
+            description.type = NSInMemoryStoreType
+            container.persistentStoreDescriptions = [description]
+        } else {
+            let storeURL = appDataDirectory().appendingPathComponent("FuelStation.sqlite")
+            let description = NSPersistentStoreDescription(url: storeURL)
+            description.shouldMigrateStoreAutomatically = true
+            description.shouldInferMappingModelAutomatically = true
+            container.persistentStoreDescriptions = [description]
+        }
         
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {
