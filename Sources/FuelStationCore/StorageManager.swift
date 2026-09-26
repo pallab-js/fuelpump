@@ -28,10 +28,13 @@ public final class StorageManager {
 
     public init() {
         ioContext = CoreDataStack.shared.newBackgroundContext()
+        print("[diag] storage ioContext ready")
         loadAll()
+        print("[diag] storage loadAll done")
         if pumps.isEmpty {
             initializeDefaultPumps()
         }
+        print("[diag] storage init done")
     }
 
     // MARK: - Persistence

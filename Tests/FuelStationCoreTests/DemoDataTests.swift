@@ -1,6 +1,19 @@
+import Darwin
 import Foundation
 import Testing
 @testable import FuelStationCore
+
+/// Temporary diagnostics: CI cannot attach lldb to the test process, so dump a
+/// symbolized backtrace from inside it when the trap fires.
+private func installTrapBacktrace() {
+    signal(SIGTRAP) { _ in
+        var frames = [UnsafeMutableRawPointer?](repeating: nil, count: 64)
+        let count = backtrace(&frames, 64)
+        backtrace_symbols_fd(&frames, count, 2)
+        signal(SIGTRAP, SIG_DFL)
+        raise(SIGTRAP)
+    }
+}
 
 /// The seeder wipes and rebuilds the whole store, so it must never run against
 /// the real station file: the in-memory store is requested before the shared
@@ -9,6 +22,7 @@ import Testing
 @MainActor
 struct DemoDataTests {
     private func makeStorage() throws -> StorageManager {
+        installTrapBacktrace()
         // validate.sh sets this before the process starts so the choice cannot
         // race with the other test threads reading `environ`; the fallback only
         // runs for a bare `swift test`.

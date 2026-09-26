@@ -16,7 +16,9 @@ extension StorageManager {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
 
+        print("[diag] seed: wipe start")
         try wipeAllData()
+        print("[diag] seed: wipe done")
 
         // Station identity (wipeAllData resets settings to the defaults).
         var s = settings
@@ -108,6 +110,7 @@ extension StorageManager {
             fuelTanks[idx] = tank
         }
 
+        print("[diag] seed: records built")
         transactions.sort { $0.date > $1.date }
         lubeSales.sort { $0.date > $1.date }
         deliveries.sort { $0.date > $1.date }

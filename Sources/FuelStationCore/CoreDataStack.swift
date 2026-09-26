@@ -15,6 +15,7 @@ public final class CoreDataStack {
         container = NSPersistentContainer(name: "FuelStationModel", managedObjectModel: model)
 
         isInMemoryStore = ProcessInfo.processInfo.environment["FUELSTATION_IN_MEMORY_STORE"] == "1"
+        print("[diag] stack env read: inMemory=\(isInMemoryStore)")
         if isInMemoryStore {
             let description = NSPersistentStoreDescription()
             description.type = NSInMemoryStoreType
@@ -30,6 +31,9 @@ public final class CoreDataStack {
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {
                 logger.error("CoreData failed to load: \(error.localizedDescription)")
+                print("[diag] store load FAILED: \(error.localizedDescription)")
+            } else {
+                print("[diag] store load ok")
             }
         }
         container.viewContext.automaticallyMergesChangesFromParent = true
