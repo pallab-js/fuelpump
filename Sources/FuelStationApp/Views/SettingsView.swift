@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(StorageManager.self) private var storage
     @State private var showingWipeConfirmation = false
+    @State private var showingDemoDataConfirmation = false
     @State private var showingRestorePicker = false
     @State private var pendingRestoreURL: URL?
     @State private var showingAddFuelTypeAlert = false
@@ -191,6 +192,9 @@ struct SettingsView: View {
 
             Section("Data Management") {
                 Button("Export All Data (JSON)", action: exportAllJSON)
+                Button(loc("Load Demo Data")) {
+                    showingDemoDataConfirmation = true
+                }
                 Button("Wipe All Data", role: .destructive) {
                     showingWipeConfirmation = true
                 }
@@ -227,6 +231,20 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will permanently delete all fuel tanks, transactions, deliveries, and expenses. This action cannot be undone.", bundle: fuelStationBundle)
+        }
+        .alert(loc("Load Demo Data?"), isPresented: $showingDemoDataConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button(loc("Replace with Demo Data"), role: .destructive) {
+                do {
+                    try storage.seedDemoData()
+                    setStatus(loc("Demo data loaded"))
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
+        } message: {
+            Text("Replaces every current record with 30 days of sample station data (tanks, pumps, customers, shifts, sales, deliveries and expenses). This cannot be undone.", bundle: fuelStationBundle)
         }
         .alert("Add Fuel Type", isPresented: $showingAddFuelTypeAlert) {
             TextField("Fuel Type Name", text: $newFuelTypeName)

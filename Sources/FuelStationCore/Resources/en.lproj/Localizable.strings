@@ -179,3 +179,9 @@
 "No fuel sales" = "No fuel sales";
 
 "Fuel Type Sales" = "Fuel Type Sales";
+
+"Load Demo Data" = "Load Demo Data";
+"Load Demo Data?" = "Load Demo Data?";
+"Replace with Demo Data" = "Replace with Demo Data";
+"Demo data loaded" = "Demo data loaded";
+"Replaces every current record with 30 days of sample station data (tanks, pumps, customers, shifts, sales, deliveries and expenses). This cannot be undone." = "Replaces every current record with 30 days of sample station data (tanks, pumps, customers, shifts, sales, deliveries and expenses). This cannot be undone.";

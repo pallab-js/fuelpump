@@ -176,3 +176,9 @@
 "No fuel sales" = "Aucune vente de carburant";
 
 "Fuel Type Sales" = "Ventes par carburant";
+
+"Load Demo Data" = "Charger les données de démonstration";
+"Load Demo Data?" = "Charger les données de démonstration ?";
+"Replace with Demo Data" = "Remplacer par les données de démo";
+"Demo data loaded" = "Données de démonstration chargées";
+"Replaces every current record with 30 days of sample station data (tanks, pumps, customers, shifts, sales, deliveries and expenses). This cannot be undone." = "Remplace tous les enregistrements actuels par 30 jours de données d'exemple (cuves, pompes, clients, quarts, ventes, livraisons et dépenses). Cette action est irréversible.";

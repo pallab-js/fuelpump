@@ -5,7 +5,21 @@ import SwiftUI
 
 @main
 struct FuelStationApp: App {
-    @State private var storage = StorageManager()
+    @State private var storage: StorageManager
+
+    init() {
+        let manager = StorageManager()
+        _storage = State(initialValue: manager)
+        // `swift run FuelStationApp --seed-demo` loads the sample station before
+        // the first frame. Like the Settings action it REPLACES existing data.
+        if CommandLine.arguments.contains("--seed-demo") {
+            do {
+                try manager.seedDemoData()
+            } catch {
+                logger.error("Demo seed failed: \(error.localizedDescription)")
+            }
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
