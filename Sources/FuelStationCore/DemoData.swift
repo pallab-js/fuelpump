@@ -83,11 +83,13 @@ extension StorageManager {
         }
 
         // Today gets an active shift first, so its sales are tagged with it by
-        // `addTransaction`.
+        // `addTransaction`. Seeded before opening time it starts "now" instead
+        // of a few hours in the future.
         let todayShiftID = UUID()
+        let shiftStart = time(on: today, hour: 7, minute: 0)
         shifts.append(Shift(
             id: todayShiftID,
-            startTime: time(on: today, hour: 7, minute: 0),
+            startTime: shiftStart <= .now ? shiftStart : .now,
             employeeName: staff[0],
             attendants: [staff[1], staff[2]],
             openingCash: 5_000,
@@ -206,8 +208,14 @@ extension StorageManager {
             let inStock = lubeProducts.filter { $0.stock > 0 }
             guard let product = inStock.randomElement(using: &rng) else { break }
             let quantity = product.stock >= 3 ? Int.random(in: 1...2, using: &rng) : 1
+            let saleDate = time(
+                on: day,
+                hour: Int.random(in: 8...20, using: &rng),
+                minute: Int.random(in: 0...59, using: &rng)
+            )
+            if let cutoff, saleDate > cutoff { continue }
             try addLubeSale(LubeSale(
-                date: time(on: day, hour: Int.random(in: 8...20, using: &rng), minute: Int.random(in: 0...59, using: &rng)),
+                date: saleDate,
                 productID: product.id,
                 quantity: quantity,
                 totalAmount: round(Double(quantity) * product.price, to: 2),
