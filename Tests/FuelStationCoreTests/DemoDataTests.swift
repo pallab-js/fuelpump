@@ -9,7 +9,12 @@ import Testing
 @MainActor
 struct DemoDataTests {
     private func makeStorage() throws -> StorageManager {
-        setenv("FUELSTATION_IN_MEMORY_STORE", "1", 1)
+        // validate.sh sets this before the process starts so the choice cannot
+        // race with the other test threads reading `environ`; the fallback only
+        // runs for a bare `swift test`.
+        if ProcessInfo.processInfo.environment["FUELSTATION_IN_MEMORY_STORE"] == nil {
+            setenv("FUELSTATION_IN_MEMORY_STORE", "1", 1)
+        }
         let storage = StorageManager()
         guard CoreDataStack.shared.isInMemoryStore else {
             throw AppError.persistence("CoreData stack is not in-memory; refusing to seed demo data")
