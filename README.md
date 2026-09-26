@@ -54,6 +54,15 @@ FuelPump is a comprehensive, production-ready fuel station management applicatio
 4. **Initial Setup**:
    On the first launch, follow the Onboarding assistant to configure your station's currency, fuel types, and tanks.
 
+5. **Try it with sample data** (optional):
+   ```bash
+   swift run FuelStationApp --seed-demo
+   ```
+   or use **Settings → Data Management → Load Demo Data**. Both create a
+   deterministic 30-day demo station (tanks, pumps, customers, shifts, sales,
+   lube sales, deliveries, expenses) — and both **replace every existing
+   record**, so do not use them on a station with real data.
+
 ## Known Issues
 
 ### French localization is not applied to most UI strings
